@@ -1,0 +1,16 @@
+[workspace]
+members = [
+	"riscv_base",
+	"microos",
+]
+
+[profile.release]
+opt-level = 'z'
+debug = false
+rpath = false
+lto = true
+debug-assertions = false
+codegen-units = 16
+panic = 'abort'
+incremental = false
+overflow-checks = false

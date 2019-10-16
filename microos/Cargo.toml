@@ -1,0 +1,11 @@
+[package]
+name = "microos"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+panic-halt = "0.2.0"
+volatile = "0.2.0"
+riscv_base = {path="../riscv_base"}
+
+

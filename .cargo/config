@@ -1,0 +1,11 @@
+[target.riscv]
+
+[target.riscv32imc-unknown-none-elf]
+
+rustflags = [
+  "-C", "link-arg=-Tlink.x",
+  "-C", "linker=riscv32-elf-ld",
+]
+
+[build]
+target = "riscv32imc-unknown-none-elf"

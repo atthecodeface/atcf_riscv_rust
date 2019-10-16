@@ -1,0 +1,9 @@
+[package]
+name = "riscv_base"
+version = "0.1.0"
+
+[dependencies]
+riscv-rt-macros = "0.1.6"
+panic-halt = "0.2.0"
+libc = "0.2.0"
+

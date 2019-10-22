@@ -26,4 +26,10 @@ pub fn tx(data:u32) {
         core::ptr::write_volatile(apb_uart_holding, data)
     };
 }
+pub fn tx_when_ready(data:u32) {
+    loop {
+        if (status()&0x100)==0 { break; }
+        }
+    tx(data)
+}
 

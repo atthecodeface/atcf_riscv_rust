@@ -24,8 +24,11 @@ fn uart_loopback() -> () {
 }
 
 fn wait(v:u32) -> () {
-   loop {};
+   for _ in 0..v {
+       unsafe {riscv_base::sleep(1000)};
+   }
 }
+
 fn vcu108_i2c_reset(gpio_base:u32) -> () {
     riscv_base::gpio::set_outputs(gpio_base | 0x20); // drive i2c_reset_mux_n low
     wait(10);
@@ -36,16 +39,30 @@ fn vcu108_i2c_reset(gpio_base:u32) -> () {
 }
 
 fn vcu108_i2c_start(gpio_base:u32) -> () {
+    riscv_base::fb_sram::set_control(1<<11);
+    riscv_base::gpio::get_inputs();
     riscv_base::gpio::set_outputs(gpio_base | 0x8); //  Start (SDA low, SCL stays high)
     wait(2);
+    riscv_base::gpio::get_inputs();
     riscv_base::gpio::set_outputs(gpio_base | 0xa); //  SDA low SCL low
     wait(2);
+    riscv_base::gpio::get_inputs();
+    riscv_base::fb_sram::set_control((1<<11)|(1<<6));
 }
 
 fn vcu108_i2c_stop(gpio_base:u32) -> () {
     riscv_base::gpio::set_outputs(gpio_base | 0xa); //  SDA low SCL low
     wait(2);
     riscv_base::gpio::set_outputs(gpio_base | 0x8); //  SCL high, SDA low
+    wait(2);
+    riscv_base::gpio::set_outputs(gpio_base | 0);   //  SDA high, SCL high
+    wait(2);
+}
+
+fn vcu108_i2c_cont(gpio_base:u32) -> () {
+    riscv_base::gpio::set_outputs(gpio_base | 0xa); //  SDA low SCL low
+    wait(2);
+    riscv_base::gpio::set_outputs(gpio_base | 0x2); //  SDA high, SCL low
     wait(2);
     riscv_base::gpio::set_outputs(gpio_base | 0);   //  SDA high, SCL high
     wait(2);
@@ -60,32 +77,50 @@ fn vcu108_i2c_output_bit(gpio_base:u32, data:bool) -> () {
     wait(2);
 }
 
-fn vcu108_i2c_read_bit(gpio_base:u32, data:bool) -> bool {
+fn vcu108_i2c_read_bit(gpio_base:u32) -> bool {
     riscv_base::gpio::set_outputs(gpio_base | 0x2 ); //  Keep SCL low, SDA float
     wait(2);
     riscv_base::gpio::set_outputs(gpio_base | 0x0 ); //  Let SCL float high
     wait(1);
-    //let r=riscv_base::gpio_bit;
+    let r=(riscv_base::gpio::get_inputs()&1)==1;
     wait(1);
     riscv_base::gpio::set_outputs(gpio_base | 0x2 ); //  Pull SCL low, SDA hold
     wait(2);
-    true
+    r
 }
 
 fn vcu108_i2c_output_byte(gpio_base:u32, data:u32) -> bool {
    for i in 0..7 {
-     vcu108_i2c_output_bit(gpio_base, ((data>>i)&1)==1 );
+     vcu108_i2c_output_bit(gpio_base, ((data>>(7-i))&1)==1 );
    }
-   true
+   let nack = vcu108_i2c_read_bit(gpio_base);
+   riscv_base::dprintf::write4(0,(0x41636b87, (if nack {0} else {1}), 0xffffffff,0));
+   riscv_base::dprintf::wait();
+   false
 }
 
-
-// ; // write
-    // 7 bits + RnW
-//    vcu108_i2c_output_bit(gpio_base, 0);
-    // Ac
-//    let ack = vcu108_i2c_read_bit(gpio_base);
-//    if ack
+fn vcu108_i2c_exec(gpio_base:u32, num_out:u32, num_in:u32, cont:bool, data_in:u32) -> (bool, u32) {
+    let mut okay = true;
+    let mut data = data_in;
+    vcu108_i2c_start(gpio_base);
+    if num_out>0 {
+        for _ in 1..num_out {
+            if okay { okay = vcu108_i2c_output_byte(gpio_base, data);
+                      data = data >> 8;
+            }
+        }
+    }
+    if okay {
+        if cont {
+            vcu108_i2c_cont(gpio_base);
+        } else {
+            vcu108_i2c_stop(gpio_base);
+        }    
+    } else {
+        vcu108_i2c_stop(gpio_base);
+    }
+    (okay, 0)
+}
 
 // write 0x0 to 0x75
 // write 0x20 to 0x74
@@ -94,15 +129,24 @@ fn vcu108_i2c_output_byte(gpio_base:u32, data:u32) -> bool {
 #[export_name = "__main"]
 pub extern "C" fn main() -> () {
 
-    uart_loopback();
+    // riscv_base::fb_sram::set_control((1<<11)|(1<<6)); // kill VGA and APB dprintfs
+    // riscv_base::uart::config();
+
+    // uart_loopback();
+    // riscv_base::uart::tx_when_ready(65);
+    // riscv_base::uart::tx_when_ready(10);
+    // riscv_base::uart::tx_when_ready(13);
+    // riscv_base::dprintf::write4(0,(0x414243ff,0,0,0));
+    // riscv_base::dprintf::wait();
+    // riscv_base::fb_sram::set_control((1<<11)|(0<<6)); // kill VGA
+    
+    unsafe {riscv_base::sleep(0x400000)};
     let mut gpio = riscv_base::gpio::get_outputs();
     let gpio_base = gpio & !0x3f;
-
     vcu108_i2c_reset(gpio_base);
-    vcu108_i2c_start(gpio_base);
-    if ( (vcu108_i2c_output_byte(gpio_base, (0x75<<1)|0)) &&
-         (vcu108_i2c_output_byte(gpio_base, 0))
-         ) {
-      vcu108_i2c_stop(gpio_base);
-    }
+    vcu108_i2c_exec(gpio_base, 1, 1, false, (0x75<<1)|1 );
+    vcu108_i2c_reset(gpio_base);
+    riscv_base::dprintf::wait();
+    riscv_base::dprintf::write1(0,(0x454e44ff));
+    loop {};
 }

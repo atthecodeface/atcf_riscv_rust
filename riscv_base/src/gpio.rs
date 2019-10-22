@@ -4,17 +4,10 @@
 //    apb_address_gpio_input_reg_0  = 2,
 //    apb_address_gpio_input_reg_1  = 3,
 
-pub fn set_otputs() {
-    unsafe {
-        let apb_uart_brg  : *mut u32 = super::minimal::APB_UART.offset(1);
-        core::ptr::write_volatile(apb_uart_brg,53) // 53 for 100MHz to 115.2kHz
-    };
-}
-
-pub fn uart_status() -> u32 {
+pub fn get_inputs() -> u32 {
     return unsafe {
-        let apb_uart_status  : *const u32 = super::minimal::APB_UART.offset(0);
-        core::ptr::read_volatile(apb_uart_status)
+        let gpio_input_status : *const u32 = super::minimal::APB_GPIO.offset(1);
+        core::ptr::read_volatile(gpio_input_status)
     };
 }
 

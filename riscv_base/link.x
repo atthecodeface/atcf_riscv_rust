@@ -14,7 +14,7 @@ SECTIONS
     *(.text .text.*)
     . = ALIGN(4); /* required by lld */
    } 
-  . = 0x400;
+  . = 0x800;
   .stack : {
     _estack = .;
     _stack_base = .;

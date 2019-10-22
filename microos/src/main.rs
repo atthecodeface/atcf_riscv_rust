@@ -29,21 +29,14 @@ fn wait(v:u32) -> () {
    }
 }
 
-fn vcu108_i2c_reset(gpio_base:u32) -> () {
-    riscv_base::gpio::set_outputs(gpio_base | 0x20); // drive i2c_reset_mux_n low
-    wait(10);
-    riscv_base::gpio::set_outputs(gpio_base | 0x30); //  i2c_reset_mux_n high
-    wait(10);
-    riscv_base::gpio::set_outputs(gpio_base | 0); //  release i2c_reset_mux_n
-    wait(10);
-}
-
 fn show_gpio_in() -> () {
    riscv_base::dprintf::wait();
    riscv_base::dprintf::write1(0,0x8100ffff|((riscv_base::gpio::get_inputs()&0xff)<<16));
 }
 
 fn vcu108_i2c_start(gpio_base:u32) -> () {
+    riscv_base::gpio::set_outputs(gpio_base | 0);   //  SDA high, SCL high
+    wait(2);
     riscv_base::gpio::set_outputs(gpio_base | 0x8); //  Start (SDA low, SCL stays high)
     wait(2);
     riscv_base::gpio::set_outputs(gpio_base | 0xa); //  SDA low SCL low
@@ -125,6 +118,21 @@ fn vcu108_i2c_exec(gpio_base:u32, num_out:u32, num_in:u32, cont:bool, data_in:u3
     (okay, 0)
 }
 
+fn vcu108_i2c_reset(gpio_base:u32) -> () {
+    riscv_base::gpio::set_outputs(gpio_base | 0x20); // drive i2c_reset_mux_n low
+    wait(10);
+    riscv_base::gpio::set_outputs(gpio_base | 0x30); //  i2c_reset_mux_n high
+    wait(10);
+    riscv_base::gpio::set_outputs(gpio_base | 0); //  release i2c_reset_mux_n
+    wait(10);
+    for _ in 0..31 {
+        vcu108_i2c_start(gpio_base);
+    wait(10);
+        vcu108_i2c_stop(gpio_base);
+    wait(10);
+        }
+}
+
 // write 0x0 to 0x75
 // write 0x20 to 0x74
 // write 16 bits of data regaddr/regdata to 0x39
@@ -146,7 +154,6 @@ pub extern "C" fn main() -> () {
     //    riscv_base::gpio::get_inputs();
     //    riscv_base::fb_sram::set_control((1<<11)|(1<<6));
     
-    unsafe {riscv_base::sleep(0x400000)};
     let gpio = riscv_base::gpio::get_outputs();
     let gpio_base = gpio & !0x3f;
     vcu108_i2c_reset(gpio_base);

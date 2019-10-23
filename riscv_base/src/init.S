@@ -4,6 +4,9 @@
 .weak  __main
 .equ   __main, wait_forever
 
+//.equ SLEEP_AMOUNT, 0x400000
+.equ SLEEP_AMOUNT, 0x40
+
 _start:
     .cfi_startproc
     .cfi_undefined ra
@@ -26,7 +29,7 @@ _start:
     li      a1,53
     sw      a1,4(a0)
 
-    lui a0, 0x400
+    li a0, SLEEP_AMOUNT
 start_pause:    
     addi a0, a0, -1
     bge a0, zero, start_pause
@@ -61,7 +64,7 @@ start_pause:
     li      s4, 0x840
     sw      s4,8(s3) # 170008 - FB SRAM control
 
-    lui a0, 0x400
+    li a0, SLEEP_AMOUNT
 start_pause2:    
     addi a0, a0, -1
     bge a0, zero, start_pause2

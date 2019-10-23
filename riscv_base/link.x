@@ -12,6 +12,9 @@ SECTIONS
   . = ALIGN(16);
   .text : {
     *(.text .text.*)
+    . = ALIGN(4);
+    *(.rodata*)
+    *(.data*)
     . = ALIGN(4); /* required by lld */
    } 
   . = 0x800;

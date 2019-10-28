@@ -172,25 +172,7 @@ fn vcu108_i2c_reset(gpio_base:u32) -> () {
 
 const adv7511_init : [u32; 15] = [ 0xc0d6, 0x1041, 0x0398, 0xe09a, 0x309c, 0x619d, 0xa4a2, 0xa4a3, 0xd0e0, 0x00f9, 0x0115, 0x3416, 0x0848, 0x02af, 0x0217 ];
 
-#[link_section=".start"]
-#[export_name = "__main"]
-pub extern "C" fn main() -> () {
-
-    // riscv_base::fb_sram::set_control((1<<11)|(1<<6)); // kill VGA and APB dprintfs
-    // riscv_base::uart::config();
-
-    // uart_loopback();
-    // riscv_base::uart::tx_when_ready(65);
-    // riscv_base::uart::tx_when_ready(10);
-    // riscv_base::uart::tx_when_ready(13);
-    // riscv_base::dprintf::write4(0,(0x414243ff,0,0,0));
-    // riscv_base::dprintf::wait();
-    // riscv_base::fb_sram::set_control((1<<11)|(0<<6)); // kill VGA
-    //    riscv_base::fb_sram::set_control(1<<11);
-    //    riscv_base::gpio::get_inputs();
-    //    riscv_base::fb_sram::set_control((1<<11)|(1<<6));
-    riscv_base::framebuffer::timing_configure( riscv_base::framebuffer::TIMINGS_2K );
-
+fn configure_adv7511_old() {
     let gpio = riscv_base::gpio::get_outputs();
     let gpio_base = gpio & !0x3f;
     //vcu108_i2c_reset(gpio_base);
@@ -215,6 +197,51 @@ pub extern "C" fn main() -> () {
     vcu108_i2c_exec(gpio_base, 1, 1, false, (0x39<<1)|1 );
     //vcu108_i2c_reset(gpio_base);
     //riscv_base::fb_sram::set_control((1<<6)); // enable vsync
+}
+
+fn configure_adv7511() {
+    // for 100MHz clock the divider can be 10, and period 10 (i.e. 10MHz I2C pin sampling, 1us period for master transitions)
+    // period_delay of 10 gives 50kHz I2C interface - give a hold of 6 and setup of 4 to split period for when SDA changes
+    riscv_base::i2c_master::write_i2c_config(0x046a0a0a);
+    // Disable 4-port I2C expander
+    riscv_base::i2c_master::exec(2, 0, false, (0x0000)|(0x75<<1)|0 );
+    // Enable 8-port I2C expander to talk to ADV7511 only
+    riscv_base::i2c_master::exec(2, 0, false, (0x2000)|(0x74<<1)|0 );
+    // Write to ADV7511 (note can set d6[2;6] to 11 to have 'HPD is always high')
+    // Note 98-ae, cd-f8 are not reset with HPD
+    for w in &adv7511_init {
+        riscv_base::i2c_master::exec(3, 0, false, (w<<8)|(0x39u32<<1)|0u32 );
+    }
+    riscv_base::i2c_master::exec(2, 0, true, (0x00<<8)|(0x39<<1)|0 );
+    riscv_base::i2c_master::exec(1, 1, false, (0x39<<1)|1 );
+    riscv_base::i2c_master::exec(2, 0, true, (0x3c<<8)|(0x39<<1)|0 );
+    riscv_base::i2c_master::exec(1, 1, false, (0x39<<1)|1 );
+    riscv_base::i2c_master::exec(2, 0, true, (0x3d<<8)|(0x39<<1)|0 );
+    riscv_base::i2c_master::exec(1, 1, false, (0x39<<1)|1 );
+    riscv_base::i2c_master::exec(2, 0, true, (0x3e<<8)|(0x39<<1)|0 );
+    riscv_base::i2c_master::exec(1, 1, false, (0x39<<1)|1 );
+}
+
+#[link_section=".start"]
+#[export_name = "__main"]
+pub extern "C" fn main() -> () {
+
+    // riscv_base::fb_sram::set_control((1<<11)|(1<<6)); // kill VGA and APB dprintfs
+    // riscv_base::uart::config();
+
+    // uart_loopback();
+    // riscv_base::uart::tx_when_ready(65);
+    // riscv_base::uart::tx_when_ready(10);
+    // riscv_base::uart::tx_when_ready(13);
+    // riscv_base::dprintf::write4(0,(0x414243ff,0,0,0));
+    // riscv_base::dprintf::wait();
+    // riscv_base::fb_sram::set_control((1<<11)|(0<<6)); // kill VGA
+    //    riscv_base::fb_sram::set_control(1<<11);
+    //    riscv_base::gpio::get_inputs();
+    //    riscv_base::fb_sram::set_control((1<<11)|(1<<6));
+    riscv_base::framebuffer::timing_configure( riscv_base::framebuffer::TIMINGS_2K );
+
+    configure_adv7511();
     riscv_base::dprintf::wait();
     riscv_base::dprintf::write1(0,0x454e44ff);
     loop {};

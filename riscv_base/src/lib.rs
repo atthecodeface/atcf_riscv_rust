@@ -3,6 +3,7 @@
 pub mod minimal;
 pub mod uart;
 pub mod gpio;
+pub mod i2c_master;
 pub mod fb_sram;
 pub mod dprintf;
 pub mod framebuffer;

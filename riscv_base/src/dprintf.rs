@@ -4,11 +4,14 @@
 // address commit = 16
 // data commit    = 24..27
 
+// 0x80450001 for 128.57MHz
+// 53 for 100MHz
+pub fn set_uart_brg(data:u32) {
+    super::minimal::write_dev_apb(super::minimal::APB_DPRINTF_UART, 1, data);
+}
+
 pub fn read_address() -> u32 {
-    unsafe {
-        let apb_dprintf_address: *const u32 = super::minimal::APB_DPRINTF.offset(16);
-        core::ptr::read_volatile(apb_dprintf_address)
-    }
+    super::minimal::read_dev_apb(super::minimal::APB_DPRINTF, 16)
 }
 
 pub fn is_busy() -> bool {
@@ -21,24 +24,17 @@ pub fn wait() {
 
 pub fn write1(address:u32, data:u32) {
     unsafe {
-        let apb_dprintf_address: *mut u32 = super::minimal::APB_DPRINTF.offset(16);
-        let apb_dprintf_data0:   *mut u32 = super::minimal::APB_DPRINTF.offset(8);
-        core::ptr::write_volatile(apb_dprintf_data0,data);
-        core::ptr::write_volatile(apb_dprintf_address,address)
+        super::minimal::write_dev_apb(super::minimal::APB_DPRINTF, 8, data);
+        super::minimal::write_dev_apb(super::minimal::APB_DPRINTF,16,address);
     };
 }
 
 pub fn write4(address:u32, data:(u32, u32, u32, u32)) {
     unsafe {
-        let apb_dprintf_address: *mut u32 = super::minimal::APB_DPRINTF.offset(16);
-        let apb_dprintf_data0:   *mut u32 = super::minimal::APB_DPRINTF.offset(8);
-        let apb_dprintf_data1:   *mut u32 = super::minimal::APB_DPRINTF.offset(9);
-        let apb_dprintf_data2:   *mut u32 = super::minimal::APB_DPRINTF.offset(10);
-        let apb_dprintf_data3:   *mut u32 = super::minimal::APB_DPRINTF.offset(11);
-        core::ptr::write_volatile(apb_dprintf_data0,data.0);
-        core::ptr::write_volatile(apb_dprintf_data1,data.1);
-        core::ptr::write_volatile(apb_dprintf_data2,data.2);
-        core::ptr::write_volatile(apb_dprintf_data3,data.3);
-        core::ptr::write_volatile(apb_dprintf_address,address)
+        super::minimal::write_dev_apb(super::minimal::APB_DPRINTF, 8, data.0);
+        super::minimal::write_dev_apb(super::minimal::APB_DPRINTF, 9, data.1);
+        super::minimal::write_dev_apb(super::minimal::APB_DPRINTF,10, data.2);
+        super::minimal::write_dev_apb(super::minimal::APB_DPRINTF,11, data.3);
+        super::minimal::write_dev_apb(super::minimal::APB_DPRINTF,16,address);
     };
 }

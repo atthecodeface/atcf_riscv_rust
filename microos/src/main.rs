@@ -222,6 +222,19 @@ fn configure_adv7511() {
     riscv_base::i2c_master::exec(1, 1, false, (0x39<<1)|1 );
 }
 
+fn debug_send_pkt() {
+    riscv_base::axi4s::write_tx_config(4095);
+    riscv_base::axi4s::set_tx_ptr(1);
+    riscv_base::axi4s::write_tx_data_inc(0); // user not used by GbE at present
+    for i in 1..32 {
+        riscv_base::axi4s::write_tx_data_inc(i); // 32 words of packet data
+    }
+    riscv_base::axi4s::write_tx_data_inc(0); // next packet start will be at 2+length in words
+    riscv_base::axi4s::set_tx_ptr(0);
+    riscv_base::axi4s::write_tx_data_inc(128); // number of bytes in packet
+    riscv_base::axi4s::set_tx_ptr(34); // 2 + length in words of packet
+}
+
 #[link_section=".start"]
 #[export_name = "__main"]
 pub extern "C" fn main() -> () {
@@ -242,7 +255,31 @@ pub extern "C" fn main() -> () {
     riscv_base::framebuffer::timing_configure( riscv_base::framebuffer::TIMINGS_2K );
 
     configure_adv7511();
+    //riscv_base::dprintf::set_uart_brg(0x80450001);
+    riscv_base::dprintf::set_uart_brg(69);
+    riscv_base::axi4s::write_rx_config(4095);
     riscv_base::dprintf::wait();
     riscv_base::dprintf::write1(0,0x454e44ff);
-    loop {};
+    let mut lg = 0;
+    let mut n = 0;
+    riscv_base::fb_sram::set_control((1<<12)|(1<<11)|(1<<6));
+    loop {
+        unsafe {riscv_base::sleep(100000)};
+        let g = riscv_base::gpio::get_inputs();
+        if g!=lg {
+           riscv_base::dprintf::wait();
+           riscv_base::dprintf::write4(30,(0x87,g,0xffffffff,0xffffffff));
+           lg = g;
+           if (g&0x10)!=0 {
+               debug_send_pkt();
+           }
+           if (g&0x100)!=0 {
+    riscv_base::fb_sram::set_control((1<<12)|(1<<11));
+               let d=riscv_base::axi4s::read_rx_data();
+               riscv_base::dprintf::wait();
+               riscv_base::dprintf::write4(20,(0x87,d,0xffffffff,0xffffffff));
+    riscv_base::fb_sram::set_control((1<<12)|(1<<11)|(1<<6));
+           }
+        }
+    };
 }

@@ -7,6 +7,7 @@ pub mod i2c_master;
 pub mod fb_sram;
 pub mod dprintf;
 pub mod framebuffer;
+pub mod axi4s;
 
 extern crate panic_halt; // you can put a breakpoint on `rust_begin_unwind` to catch panics
 

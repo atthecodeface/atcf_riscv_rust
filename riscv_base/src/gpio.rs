@@ -1,6 +1,6 @@
 
 //    apb_address_gpio_output_reg   = 0,
-//    apb_address_gpio_input_status = 1,
+//    apb_address_gpio_input_status = 1, // bottom 16 bits are value, top 16 event
 //    apb_address_gpio_input_reg_0  = 2,
 //    apb_address_gpio_input_reg_1  = 3,
 

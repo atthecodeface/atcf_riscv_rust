@@ -5,6 +5,7 @@ pub mod uart;
 pub mod gpio;
 pub mod i2c_master;
 pub mod fb_sram;
+pub mod rv_sram;
 pub mod dprintf;
 pub mod framebuffer;
 pub mod axi4s;

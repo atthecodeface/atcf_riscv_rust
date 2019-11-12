@@ -254,20 +254,32 @@ pub extern "C" fn main() -> () {
     //    riscv_base::fb_sram::set_control((1<<11)|(1<<6));
     riscv_base::framebuffer::timing_configure( riscv_base::framebuffer::TIMINGS_2K );
 
-    configure_adv7511();
+    configure_adv7511(); // not sim
     //riscv_base::dprintf::set_uart_brg(0x80450001);
-    riscv_base::dprintf::set_uart_brg(69);
+    riscv_base::rv_sram::set_control( (100<<8) | (0<<4) | 8 |1);
+    riscv_base::rv_sram::set_control( (100<<8) | (0<<4) | 0 |1);
+    riscv_base::rv_sram::set_control(   (0<<8) | (1<<4) | 8 |1);
+    riscv_base::rv_sram::set_control(   (0<<8) | (1<<4) | 0 |1);
+    riscv_base::rv_sram::set_control(   (1<<8) | (2<<4) | 8 |1);
+    riscv_base::rv_sram::set_control(   (1<<8) | (2<<4) | 0 |1);
+    riscv_base::rv_sram::set_control( (127<<8) | (1<<4) | 8 |1);
+    riscv_base::rv_sram::set_control( (127<<8) | (1<<4) | 0 |1);
     riscv_base::axi4s::write_rx_config(4095);
     riscv_base::dprintf::wait();
     riscv_base::dprintf::write1(0,0x454e44ff);
+    riscv_base::fb_sram::set_control((1<<12)|(1<<11));
+               let d=riscv_base::axi4s::read_rx_data();
+               //riscv_base::dprintf::wait();
+               riscv_base::dprintf::write4(20,(0x87,d,0xffffffff,0xffffffff));
+    riscv_base::fb_sram::set_control((1<<12)|(1<<11)|(1<<6));
     let mut lg = 0;
     let mut n = 0;
     //riscv_base::fb_sram::set_control((1<<12)|(1<<11)|(1<<6));
     loop {
-        unsafe {riscv_base::sleep(100000)};
+        unsafe {riscv_base::sleep(100000)}; // not sim
         let g = riscv_base::gpio::get_inputs();
         if g!=lg {
-           riscv_base::dprintf::wait();
+           riscv_base::dprintf::wait(); //  not sim
            riscv_base::dprintf::write4(30,(0x87,g,0xffffffff,0xffffffff));
            lg = g;
            if (g&0x10)!=0 {
@@ -275,7 +287,7 @@ pub extern "C" fn main() -> () {
            }
            if (g&0x100)!=0 {
                let d=riscv_base::axi4s::read_rx_data();
-               riscv_base::dprintf::wait();
+               riscv_base::dprintf::wait(); //  not sim
                riscv_base::dprintf::write4(20,(0x87,d,0xffffffff,0xffffffff));
            }
         }

@@ -262,7 +262,7 @@ pub extern "C" fn main() -> () {
     riscv_base::dprintf::write1(0,0x454e44ff);
     let mut lg = 0;
     let mut n = 0;
-    riscv_base::fb_sram::set_control((1<<12)|(1<<11)|(1<<6));
+    //riscv_base::fb_sram::set_control((1<<12)|(1<<11)|(1<<6));
     loop {
         unsafe {riscv_base::sleep(100000)};
         let g = riscv_base::gpio::get_inputs();
@@ -274,11 +274,9 @@ pub extern "C" fn main() -> () {
                debug_send_pkt();
            }
            if (g&0x100)!=0 {
-    riscv_base::fb_sram::set_control((1<<12)|(1<<11));
                let d=riscv_base::axi4s::read_rx_data();
                riscv_base::dprintf::wait();
                riscv_base::dprintf::write4(20,(0x87,d,0xffffffff,0xffffffff));
-    riscv_base::fb_sram::set_control((1<<12)|(1<<11)|(1<<6));
            }
         }
     };

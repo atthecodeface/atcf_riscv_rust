@@ -14,6 +14,7 @@ fn main() {
     let gcc       = &format!("{}gcc", gnu_tools);
     let ar        = &format!("{}ar",  gnu_tools);
 
+    println!("# GNU tools (gcc and ar) should be at {} and {}", gcc, ar);
     println!("cargo:rerun-if-changed=src/init.S");
     println!("cargo:rerun-if-changed=src/utils.S");
     Command::new(gcc).args(&["-c",

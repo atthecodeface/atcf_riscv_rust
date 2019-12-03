@@ -32,8 +32,9 @@ use super::i2c::{vcu108_i2c_exec};
 // horizontal front porch/sync/back porch/active = 88/44/148/1920 +ve sync
 // vertical   front porch/sync/back porch/active = 4/5/36/1080 +ve sync
 
-const adv7511_init : [u32; 15] = [ 0xc0d6, 0x1041, 0x0398, 0xe09a, 0x309c, 0x619d, 0xa4a2, 0xa4a3, 0xd0e0, 0x00f9, 0x0115, 0x3416, 0x0848, 0x02af, 0x0217 ];
+const ADV7511_INIT : [u32; 15] = [ 0xc0d6, 0x1041, 0x0398, 0xe09a, 0x309c, 0x619d, 0xa4a2, 0xa4a3, 0xd0e0, 0x00f9, 0x0115, 0x3416, 0x0848, 0x02af, 0x0217 ];
 
+#[allow(dead_code)]
 fn configure_adv7511_old() {
     let gpio = riscv_base::gpio::get_outputs();
     let gpio_base = gpio & !0x3f;
@@ -46,7 +47,7 @@ fn configure_adv7511_old() {
     vcu108_i2c_exec(gpio_base, 2, 0, false, (0x2000)|(0x74<<1)|0 );
     // Write to ADV7511 (note can set d6[2;6] to 11 to have 'HPD is always high')
     // Note 98-ae, cd-f8 are not reset with HPD
-    for w in &adv7511_init {
+    for w in &ADV7511_INIT {
         vcu108_i2c_exec(gpio_base, 3, 0, false, (w<<8)|(0x39u32<<1)|0u32 );
     }
     vcu108_i2c_exec(gpio_base, 2, 0, true, (0x00<<8)|(0x39<<1)|0 );
@@ -71,7 +72,7 @@ pub fn configure_adv7511() {
     riscv_base::i2c_master::exec(2, 0, false, (0x2000)|(0x74<<1)|0 );
     // Write to ADV7511 (note can set d6[2;6] to 11 to have 'HPD is always high')
     // Note 98-ae, cd-f8 are not reset with HPD
-    for w in &adv7511_init {
+    for w in &ADV7511_INIT {
         riscv_base::i2c_master::exec(3, 0, false, (w<<8)|(0x39u32<<1)|0u32 );
     }
     riscv_base::i2c_master::exec(2, 0, true, (0x00<<8)|(0x39<<1)|0 );

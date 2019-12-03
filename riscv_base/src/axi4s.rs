@@ -42,3 +42,21 @@ pub fn write_tx_data_inc(data:u32) {
     super::minimal::write_dev_apb(super::minimal::APB_AXI4S, 11, data);
 }
 
+pub struct Axi {
+    tx_ptr : u32,
+    rx_ptr : u32,
+    sram_size : u32,
+}
+impl Axi {
+    pub fn new(sram_size:u32) -> Axi {
+        Axi { tx_ptr: 0, rx_ptr : 0, sram_size }
+    }
+    pub fn reset(&mut self) {
+        set_tx_ptr(0);
+        write_tx_data_inc(0);
+        write_tx_config(self.sram_size);
+        write_rx_config(self.sram_size);
+        self.tx_ptr = 0;
+        self.rx_ptr = 0;
+    }
+}

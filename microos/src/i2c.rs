@@ -65,6 +65,7 @@ fn vcu108_i2c_input_byte(gpio_base:u32, data_in:u32, last:bool) -> (bool, u32) {
    (true, data)
 }
 
+#[allow(dead_code)]
 pub fn vcu108_i2c_exec(gpio_base:u32, num_out:u32, num_in:u32, cont:bool, data_in:u32) -> (bool, u32) {
     let mut okay = true;
     let mut data = data_in;
@@ -105,6 +106,7 @@ pub fn vcu108_i2c_exec(gpio_base:u32, num_out:u32, num_in:u32, cont:bool, data_i
     (okay, data)
 }
 
+#[allow(dead_code)]
 fn vcu108_i2c_reset(gpio_base:u32) -> () {
     riscv_base::gpio::set_outputs(gpio_base | 0x20); // drive i2c_reset_mux_n low
     wait(10);

@@ -79,42 +79,10 @@ pub extern "C" fn main() -> () {
     riscv_base::framebuffer::timing_configure( riscv_base::framebuffer::TIMINGS_2K );
 
     adv7511::configure_adv7511(); // not sim
-    riscv_base::ethernet::autonegotiate(33);
-    let mut axi = riscv_base::axi4s::Axi::new(4095);
-    axi.reset();
     riscv_base::dprintf::wait();
     riscv_base::dprintf::write1(0,0x454e44ff);
-    riscv_base::fb_sram::set_control((1<<12)|(1<<11));
-    let d=riscv_base::axi4s::read_rx_data();
-    //riscv_base::dprintf::wait();
-    riscv_base::dprintf::write4(20,(0x87,d,0xffffffff,0xffffffff));
-    riscv_base::fb_sram::set_control((1<<12)|(1<<11)|(1<<6));
+    riscv_base::fb_sram::set_control((1<<12)|(1<<6));
 
-    /*
-    let mut lg = 0;
-    let mut n = 0;
-    //riscv_base::fb_sram::set_control((1<<12)|(1<<11)|(1<<6));
-    loop {
-    unsafe {riscv_base::sleep(100000)}; // not sim
-    let g = riscv_base::gpio::get_inputs();
-    if g!=lg {
-    riscv_base::dprintf::wait(); //  not sim
-    riscv_base::dprintf::write4(30,(0x87,g,0xffffffff,0xffffffff));
-    lg = g;
-    if (g&0x80)!=0 {
-    ethernet::autonegotiate(0xf0ff);
-}
-    if (g&0x10)!=0 {
-    ethernet::debug_send_pkt();
-}
-    if (g&0x100)!=0 {
-    let d=riscv_base::axi4s::read_rx_data();
-    riscv_base::dprintf::wait(); //  not sim
-    riscv_base::dprintf::write4(20,(0x87,d,0xffffffff,0xffffffff));
-}
-}
-};
-     */
     riscv_base::uart::config(70);
     let mut base_console = uart_console::Console{
         tx_ptrs:uart_console::Buffer{size:64,count:0,read:0,write:0,ready:false,hack:0},
@@ -122,7 +90,14 @@ pub extern "C" fn main() -> () {
         tx_buffer:[0;64],
         rx_buffer:[0;64],
     };
+    riscv_base::ethernet::autonegotiate(33);
+    let mut axi = riscv_base::axi4s::Axi::new(4095);
+    axi.reset();
     loop {
+        if axi.rx_poll() {
+            let rxs = riscv_base::axi4s::read_rx_data();
+            riscv_base::dprintf::write4(0, (0x87, rxs as u32, 0xff, 0));
+        }
         uart_console::poll(&mut base_console);
         if base_console.rx_buffer_ready() {
             execute_rx_buffer(&mut base_console);

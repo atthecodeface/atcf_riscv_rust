@@ -107,6 +107,23 @@ impl Axi {
         self.tx_tail = 0;
     }
 
+    // Add a word of transmit data (raw)
+    pub fn tx_write_u32_raw(&mut self, data:u32) {
+        write_tx_data_inc(data);
+    }
+
+    // Mark the packet as ready for submission given a byte size
+    pub fn tx_send_packet_raw(&mut self, byte_size:u32) {
+        let word_size = (byte_size+3)>>2;
+        write_tx_data(0); 
+        set_tx_ptr(self.tx_ptr);
+        write_tx_data(byte_size);
+        self.tx_ptr = (self.tx_ptr + 2 + word_size);
+        if self.tx_ptr > self.sram_size {
+            self.tx_ptr -= self.sram_size;
+        }
+    }
+
     // Write a single word into the tx buffer
     pub fn tx_write_u32(&mut self, data: u32) {
         if self.tx_tail_size == 0 {
@@ -118,6 +135,26 @@ impl Axi {
             self.tx_tail = data << (24 - self.tx_tail_size * 8);
         }
         self.tx_size += 1;
+    }
+
+    // Mark the packet as ready for submission 
+    pub fn tx_send_packet(&mut self) {
+        if self.tx_tail_size != 0 {
+            write_tx_data_inc(self.tx_tail);
+            self.tx_size += 1;
+        }
+        write_tx_data(0); 
+        set_tx_ptr(self.tx_ptr);
+        write_tx_data(self.tx_size<<2); // number of bytes in packet
+        self.tx_ptr = (self.tx_ptr + 2 + self.tx_size);// % self.sram_size;
+        if self.tx_ptr > self.sram_size {
+            self.tx_ptr -= self.sram_size;
+        }
+
+        self.tx_tail = 0;
+        self.tx_tail_size = 0;
+        self.tx_size = 0;
+
     }
 
     // Write the byte array into the tx buffer
@@ -163,41 +200,6 @@ impl Axi {
         self.tx_tail_size = pack_count;
     }
 
-    // Mark the packet as ready for submission 
-    pub fn tx_send_packet(&mut self) {
-        if self.tx_tail_size != 0 {
-            write_tx_data_inc(self.tx_tail);
-            self.tx_size += 1;
-        }
-        write_tx_data(0); 
-        set_tx_ptr(self.tx_ptr);
-        write_tx_data(self.tx_size<<2); // number of bytes in packet
-        self.tx_ptr = (self.tx_ptr + 2 + self.tx_size);// % self.sram_size;
-        if self.tx_ptr > self.sram_size {
-            self.tx_ptr -= self.sram_size;
-        }
-
-        self.tx_tail = 0;
-        self.tx_tail_size = 0;
-        self.tx_size = 0;
-
-    }
-
-    pub fn tx_write_u32_raw(&mut self, data:u32) {
-        write_tx_data_inc(data);
-    }
-
-    // Mark the packet as ready for submission 
-    pub fn tx_send_packet_raw(&mut self, byte_size:u32) {
-        let word_size = (byte_size+3)>>2;
-        write_tx_data(0); 
-        set_tx_ptr(self.tx_ptr);
-        write_tx_data(byte_size);
-        self.tx_ptr = (self.tx_ptr + 2 + word_size);
-        if self.tx_ptr > self.sram_size {
-            self.tx_ptr -= self.sram_size;
-        }
-    }
 
 
 

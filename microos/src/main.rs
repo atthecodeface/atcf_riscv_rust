@@ -103,7 +103,7 @@ fn execute_rx_buffer(console : &mut uart_console::Console) {
 }
 
 // This code works
-axi_poll_reflect () {
+fn axi_poll_reflect (axi : &mut riscv_base::axi4s::Axi) {
     if (axi.rx_poll()) {
         let do_tx = (read_poll() & 2) != 0;
         let size = axi.rx_start_packet();
@@ -164,13 +164,14 @@ pub extern "C" fn main() -> () {
                if (do_tx) {axi.tx_start_packet();}
                for i in 0..size {
                    let rx_d = axi.rx_read_u32_raw();
-                   if do_tx && (i>0) {axi.tx_write_u32_raw(rx_d);}
+                   if do_tx && (i>0) {axi.tx_write_u32(rx_d);} // not raw, so it updates tx_size by 1 each time
                    unsafe { riscv_base::sleep(100); }
                    riscv_base::dprintf::wait();
                    riscv_base::dprintf::write4(12*40+40*i,(0x87,rx_d,0xff,0));
                }
                axi.rx_end_packet();
-               axi.tx_send_packet_raw((size-1)<<2);
+               // axi.tx_send_packet_raw((size-1)<<2);
+               axi.tx_send_packet(); // not raw, so it uses tx_size<<2 as the byte size
                if (do_tx) {axi.tx_start_packet();}
                clear_poll(3);
            }

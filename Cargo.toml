@@ -2,6 +2,7 @@
 members = [
 	"riscv_base",
 	"microos",
+        "arp_test",
 ]
 
 [profile.release]

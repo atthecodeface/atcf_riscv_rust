@@ -86,7 +86,6 @@ impl Axi {
             }
     }
     pub fn reset(&mut self) {
-        set_rx_ptr(0);
         set_tx_ptr(0);
         write_tx_data(0);
         write_tx_config(self.sram_size);
@@ -94,6 +93,8 @@ impl Axi {
         self.tx_ptr = 0;
         self.rx_ptr = 0;
         self.next_rx_ptr = 0;
+        self.rx_tail = 0;
+        self.rx_tail_size = 0;
     }
 
     // Preprare the tx buffer for new data
@@ -103,6 +104,7 @@ impl Axi {
         write_tx_data_inc(0); // user not used by GbE at present
         self.tx_size = 0;
         self.tx_tail_size = 0;
+        self.tx_tail = 0;
     }
 
     // Write a single word into the tx buffer
@@ -116,6 +118,27 @@ impl Axi {
             self.tx_tail = data << (24 - self.tx_tail_size * 8);
         }
         self.tx_size += 1;
+    }
+
+    // Write the byte array into the tx buffer
+    pub fn tx_write_data_le(&mut self, data: &[u8]) {
+
+        let mut word = self.tx_tail;
+        let mut pack_count = self.tx_tail_size;
+
+        for i in 0..data.len() {
+            if pack_count == 4 {
+                write_tx_data_inc(word);
+                self.tx_size += 1;
+                word = 0;
+                pack_count = 0;
+            }
+            word = word << 8 | (data[i] as u32);
+            pack_count += 1;
+        }
+
+        self.tx_tail = word;
+        self.tx_tail_size = pack_count;
     }
 
     // Write the byte array into the tx buffer
@@ -142,19 +165,49 @@ impl Axi {
 
     // Mark the packet as ready for submission 
     pub fn tx_send_packet(&mut self) {
-
         if self.tx_tail_size != 0 {
             write_tx_data_inc(self.tx_tail);
             self.tx_size += 1;
         }
+        write_tx_data(0); 
         set_tx_ptr(self.tx_ptr);
-        write_tx_data_inc(self.tx_size); // number of bytes in packet
-        self.tx_ptr = (self.tx_ptr + 2 + self.tx_size) / self.sram_size;
+        write_tx_data(self.tx_size<<2); // number of bytes in packet
+        self.tx_ptr = (self.tx_ptr + 2 + self.tx_size);// % self.sram_size;
+        if self.tx_ptr > self.sram_size {
+            self.tx_ptr -= self.sram_size;
+        }
+
+        self.tx_tail = 0;
+        self.tx_tail_size = 0;
+        self.tx_size = 0;
+
     }
 
-    // Roll the buffer back  to start of failed packet
+    pub fn tx_write_u32_raw(&mut self, data:u32) {
+        write_tx_data_inc(data);
+    }
+
+    // Mark the packet as ready for submission 
+    pub fn tx_send_packet_raw(&mut self, byte_size:u32) {
+        let word_size = (byte_size+3)>>2;
+        write_tx_data(0); 
+        set_tx_ptr(self.tx_ptr);
+        write_tx_data(byte_size);
+        self.tx_ptr = (self.tx_ptr + 2 + word_size);
+        if self.tx_ptr > self.sram_size {
+            self.tx_ptr -= self.sram_size;
+        }
+    }
+
+
+
+
+    // Roll the buffer back to start of failed packet
     pub fn tx_fail_packet(&mut self) {
-        set_tx_ptr(self.tx_ptr - 2); 
+        set_tx_ptr(self.tx_ptr);
+
+        self.tx_tail = 0;
+        self.tx_tail_size = 0;
         self.tx_size = 0;
     }
 
@@ -167,25 +220,34 @@ impl Axi {
 
     // Prepare to read a packet from buffer
     pub fn rx_start_packet(&mut self) -> u32 {
-        let rx_status = read_rx_data();
+        let rx_status = read_rx_data_inc();
         let word_size = rx_status & 0x3ff;
         self.next_rx_ptr = self.rx_ptr + word_size;
+        if self.next_rx_ptr > self.sram_size {
+            self.next_rx_ptr -= self.sram_size;
+        }
+        
         self.rx_size = word_size;
         self.rx_tail = 0;
         self.rx_tail_size = 0;
-        word_size
+        word_size - 1
+    }
+
+    pub fn rx_read_u32_raw(&mut self) -> u32 {
+        read_rx_data_inc()
     }
 
     // Read a single word from the packet
-    pub fn rx_read_u32(&mut self) -> Result<u32, AxiError> {
+    pub fn rx_read_u32(&mut self) -> u32 {
 
         if self.rx_size <= 0 {
-            return Err(AxiError::RxOverflow);
+		return 0;
+        //    return Err(AxiError::RxOverflow);
         }
         if self.rx_tail_size == 0 {
             let word = read_rx_data_inc();
             self.rx_size -= 1;
-            return Ok(word);
+            return word;//Ok(word);
         }
         else {
             let mut rslt = self.rx_tail;
@@ -193,7 +255,7 @@ impl Axi {
             rslt |= word >> (self.tx_tail_size * 8);
             self.rx_tail = word << (24 - self.rx_tail_size * 8);
             self.rx_size -= 1;
-            return Ok(rslt);
+            return rslt;//Ok(rslt);
         }
     }
 
@@ -201,25 +263,43 @@ impl Axi {
     pub fn rx_read_data(&mut self, buffer: &mut [u8]) -> usize {
 
         for i in 0..buffer.len() {
-            if self.rx_tail_size != 0 {
-                buffer[i] = (self.rx_tail >> (24 - self.rx_tail_size * 8)) as u8;
-                self.rx_tail_size -= 1;
-            } else if self.rx_size > 0 {
+            if self.rx_tail_size == 0 {
+                if self.rx_size == 0 {
+                    return i;
+                }
                 self.rx_tail = read_rx_data_inc();
                 self.rx_tail_size = 4;
                 self.rx_size -= 1
-            } else {
-                // no more data in rx buffer, return
-                return i;
             }
+            buffer[i] = (self.rx_tail >> (24 - self.rx_tail_size * 8)) as u8;
+            self.rx_tail_size -= 1;
         }
         return buffer.len();
+    }
 
+    // Read data from the current packet into the buffer in little endian, return the number of bytes read.
+    pub fn rx_read_data_le(&mut self, buffer: &mut [u8]) -> usize {
+
+        for i in 0..buffer.len() {
+            if self.rx_tail_size == 0 {
+                if self.rx_size == 0 {
+                    return i;
+                }
+                self.rx_tail = read_rx_data_inc();
+                self.rx_tail_size = 4;
+                self.rx_size -= 1
+            }
+            buffer[i] = self.rx_tail as u8;
+            self.rx_tail = self.rx_tail >> 8;
+            self.rx_tail_size -= 1;
+        }
+        return buffer.len();
     }
 
 
     // Mark the packet as finished. 
-    pub fn rx_end_packet(&self) {
+    pub fn rx_end_packet(&mut self) {
+	    self.rx_ptr = self.next_rx_ptr;
         set_rx_ptr(self.next_rx_ptr);
         commit_rx_ptr()
     }

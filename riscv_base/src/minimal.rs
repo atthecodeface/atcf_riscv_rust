@@ -7,7 +7,7 @@ macro_rules! apb_dev {
 }
 
 macro_rules! csr_dev {
- ($d:expr) => (CSR_BASE | ($d<<12));
+ ($d:expr) => (CSR_BASE | ($d<<16));
 }
 
 pub const APB_TIMER:            *mut u32 = apb_dev!(0) as *mut u32;

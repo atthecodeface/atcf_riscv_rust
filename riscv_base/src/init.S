@@ -21,9 +21,9 @@ _start:
     //la gp, __global_pointer$
     .option pop
 
-    lui     s3,0x170
+    lui     s3, 0x470
     li      s4, 0x840
-    sw      s4,8(s3) # 170008 - FB SRAM control
+    sw      s4,8(s3) # 470008 - FB SRAM control
 
     lui     a0,0x190
     li      a1,53

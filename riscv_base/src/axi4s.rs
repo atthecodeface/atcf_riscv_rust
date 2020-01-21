@@ -96,7 +96,7 @@ impl Axi {
         let rx_status = read_rx_data();
         let word_size = rx_status & 0x3ff;
         self.next_rx_ptr = self.rx_ptr + word_size;
-        word_size
+        word_size-1
     }
     pub fn rx_read_data(&self) -> u32 {
         read_rx_data_inc()

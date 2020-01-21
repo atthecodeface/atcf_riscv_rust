@@ -1,4 +1,4 @@
-pub const APB_BASE         : u32 = 0x100000;
+pub const APB_BASE         : u32 = 0x400000;
 
 #[macro_export]
 macro_rules! apb_dev {

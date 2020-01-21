@@ -136,6 +136,8 @@ pub extern "C" fn main() -> () {
     //    riscv_base::fb_sram::set_control(1<<11);
     //    riscv_base::gpio::get_inputs();
     //    riscv_base::fb_sram::set_control((1<<11)|(1<<6));
+    riscv_base::dprintf::wait();
+    riscv_base::dprintf::write1(0,0x494e49ff);
     riscv_base::framebuffer::timing_configure( riscv_base::framebuffer::TIMINGS_2K );
 
     adv7511::configure_adv7511(); // not sim

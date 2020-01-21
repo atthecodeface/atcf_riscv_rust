@@ -1,4 +1,5 @@
 pub const APB_BASE         : u32 = 0x400000;
+pub const CSR_BASE         : u32 = 0x500000;
 
 #[macro_export]
 macro_rules! apb_dev {
@@ -6,7 +7,7 @@ macro_rules! apb_dev {
 }
 
 macro_rules! csr_dev {
- ($d:expr) => (APB_BASE | (3<<16) | ($d<<12));
+ ($d:expr) => (CSR_BASE | ($d<<12));
 }
 
 pub const APB_TIMER:            *mut u32 = apb_dev!(0) as *mut u32;

@@ -1,10 +1,12 @@
 pub fn autonegotiate(adv:u32) {
-    super::rv_sram::set_control( (1<<28) | (0<<4) | 8 |1);
-    super::rv_sram::set_control( (1<<28) | (0<<4) | 0 |1);
+    super::rv_sram::set_control( (1<<20) | (0<<4) | 8 |1);
+    super::rv_sram::set_control( (1<<20) | (0<<4) | 0 |1);
     super::rv_sram::set_control( (adv<<8) | (1<<4) | 8 |1);
     super::rv_sram::set_control( (adv<<8) | (1<<4) | 0 |1);
-    super::rv_sram::set_control(   (1<<8) | (2<<4) | 8 |1);
-    super::rv_sram::set_control(   (1<<8) | (2<<4) | 0 |1);
+    unsafe {super::sleep(1<<27); }
+    super::rv_sram::set_control(0x29);
+    super::rv_sram::set_control(0x21);
+    super::rv_sram::set_control( 1 );
 }
 
 pub fn reset(sram_size:u32) {

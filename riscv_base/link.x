@@ -17,7 +17,7 @@ SECTIONS
     *(.data*)
     . = ALIGN(4); /* required by lld */
    } 
-  . = 0x800;
+  . = 0x3f00;
   .stack : {
     _estack = .;
     _stack_base = .;

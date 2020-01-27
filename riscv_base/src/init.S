@@ -22,7 +22,7 @@ _start:
     .option pop
 
     lui     s3, 0x470
-    li      s4, 0x840
+    li      s4, 0xc0
     sw      s4,8(s3) # 470008 - FB SRAM control
 
     lui     a0,0x190
@@ -34,10 +34,7 @@ start_pause:
     addi a0, a0, -1
     bge a0, zero, start_pause
 
-    //li      s4, 0x800
-    //sw      s4,8(s3) # 170008 - FB SRAM control
-
-    lui     s1,0x120
+    lui     s1,0x420
     li      a0,0x0a0d0a0d
     sw      a0,32(s1)
     li      a0,0x52656164
@@ -50,7 +47,7 @@ start_pause:
     lui sp, %hi(_stack_base)
     add sp, sp, %lo(_stack_base)
 
-    lui     s1,0x120
+    lui     s1,0x420
     li      a0,0x4d656d87 # Mem
     sw      a0,32(s1)
     sw      a0, 0(sp)
@@ -61,9 +58,6 @@ start_pause:
     sw      a1,36(s1)
     sw      zero,64(s1)
     
-    li      s4, 0x840
-    sw      s4,8(s3) # 170008 - FB SRAM control
-
     li a0, SLEEP_AMOUNT
 start_pause2:    
     addi a0, a0, -1

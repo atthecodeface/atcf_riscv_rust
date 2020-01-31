@@ -140,10 +140,11 @@ pub extern "C" fn main() -> () {
     riscv_base::dprintf::write1(0,0x494e49ff);
     riscv_base::framebuffer::timing_configure( riscv_base::framebuffer::TIMINGS_2K );
 
+    riscv_base::fb_sram::set_control((1<<12)|(1<<6)|(1<<1));
     adv7511::configure_adv7511(); // not sim
     riscv_base::dprintf::wait();
     riscv_base::dprintf::write1(0,0x454e44ff);
-    riscv_base::fb_sram::set_control((1<<12)|(1<<6));
+    riscv_base::fb_sram::set_control((1<<12)|(1<<6)|(1<<1));
 
     riscv_base::uart::config(70);
     let mut base_console = uart_console::Console{

@@ -2,6 +2,8 @@
 members = [
 	"riscv_base",
 	"microos",
+	"pxeboot",
+	"pxeboot_rom",
 #        "arp_test",
 ]
 

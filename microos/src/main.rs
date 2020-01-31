@@ -3,8 +3,6 @@
 
 extern crate panic_halt; // you can put a breakpoint on `rust_begin_unwind` to catch panics
 extern crate riscv_base;
-mod i2c;
-mod adv7511;
 mod uart;
 mod uart_console;
 
@@ -129,22 +127,13 @@ fn axi_poll_reflect (axi : &mut riscv_base::axi4s::Axi) {
 #[export_name = "__main"]
 pub extern "C" fn main() -> () {
 
-    // riscv_base::fb_sram::set_control((1<<11)|(1<<6)); // kill VGA and APB dprintfs
-    // riscv_base::dprintf::write4(0,(0x414243ff,0,0,0));
-    // riscv_base::dprintf::wait();
-    // riscv_base::fb_sram::set_control((1<<11)|(0<<6)); // kill VGA
-    //    riscv_base::fb_sram::set_control(1<<11);
-    //    riscv_base::gpio::get_inputs();
-    //    riscv_base::fb_sram::set_control((1<<11)|(1<<6));
-    riscv_base::dprintf::wait();
-    riscv_base::dprintf::write1(0,0x494e49ff);
     riscv_base::framebuffer::timing_configure( riscv_base::framebuffer::TIMINGS_2K );
+    riscv_base::fb_sram::set_control(0xc2);
 
     riscv_base::fb_sram::set_control((1<<12)|(1<<6)|(1<<1));
-    adv7511::configure_adv7511(); // not sim
+    riscv_base::vcu108::configure_adv7511(); // not sim
     riscv_base::dprintf::wait();
     riscv_base::dprintf::write1(0,0x454e44ff);
-    riscv_base::fb_sram::set_control((1<<12)|(1<<6)|(1<<1));
 
     riscv_base::uart::config(70);
     let mut base_console = uart_console::Console{
@@ -155,7 +144,11 @@ pub extern "C" fn main() -> () {
     };
     let mut axi = riscv_base::axi4s::Axi::new(4095);
     axi.reset();
+    riscv_base::dprintf::wait();
+    unsafe { riscv_base::sleep(10000); }
+    riscv_base::dprintf::write1(0,0x455048ff);
     riscv_base::ethernet::autonegotiate(33);
+
     loop {
         if (read_poll() & 1)!=0 {
            if (axi.rx_poll()) {

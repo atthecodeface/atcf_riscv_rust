@@ -129,8 +129,6 @@ pub extern "C" fn main() -> () {
 
     riscv_base::framebuffer::timing_configure( riscv_base::framebuffer::TIMINGS_2K );
     riscv_base::fb_sram::set_control(0xc2);
-
-    riscv_base::fb_sram::set_control((1<<12)|(1<<6)|(1<<1));
     riscv_base::vcu108::configure_adv7511(); // not sim
     riscv_base::dprintf::wait();
     riscv_base::dprintf::write1(0,0x454e44ff);
@@ -147,8 +145,10 @@ pub extern "C" fn main() -> () {
     riscv_base::dprintf::wait();
     unsafe { riscv_base::sleep(10000); }
     riscv_base::dprintf::write1(0,0x455048ff);
+    riscv_base::fb_sram::set_control(0xf8);
     riscv_base::ethernet::autonegotiate(33);
 
+    riscv_base::fb_sram::set_control(0xfe);
     loop {
         if (read_poll() & 1)!=0 {
            if (axi.rx_poll()) {
@@ -174,7 +174,9 @@ pub extern "C" fn main() -> () {
         }
         uart_console::poll(&mut base_console);
         if base_console.rx_buffer_ready() {
+    riscv_base::fb_sram::set_control(0xf8);
             execute_rx_buffer(&mut base_console);
+    riscv_base::fb_sram::set_control(0xfe);
             base_console.rx_buffer_reset();
         }
     }

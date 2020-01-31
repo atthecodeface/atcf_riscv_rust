@@ -29,6 +29,14 @@ pub fn write1(address:u32, data:u32) {
     };
 }
 
+pub fn write2(address:u32, data:(u32, u32)) {
+    unsafe {
+        super::minimal::write_dev_apb(super::minimal::APB_DPRINTF, 8, data.0);
+        super::minimal::write_dev_apb(super::minimal::APB_DPRINTF, 9, data.1);
+        super::minimal::write_dev_apb(super::minimal::APB_DPRINTF,16,address);
+    };
+}
+
 pub fn write4(address:u32, data:(u32, u32, u32, u32)) {
     unsafe {
         super::minimal::write_dev_apb(super::minimal::APB_DPRINTF, 8, data.0);

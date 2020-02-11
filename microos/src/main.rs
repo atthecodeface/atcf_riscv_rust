@@ -54,7 +54,7 @@ fn execute_rx_buffer(console : &mut uart_console::Console) {
         let c = line[0];
         if c==64+23 { // W = APB write
             let (address,okay,rest) = parse_int(&line[1..], true);
-            let (data,okay,rest)    = parse_int(&rest, okay);
+            let (data,okay,_rest)    = parse_int(&rest, okay);
             if okay {
                 unsafe {
                     let r: *mut u32 = address as *mut u32;
@@ -65,7 +65,7 @@ fn execute_rx_buffer(console : &mut uart_console::Console) {
                 console.tx_buffer_push(96+23);
             }
         } else if c==64+18 { // R = APB read
-            let (address,okay,rest) = parse_int(&line[1..], true);
+            let (address,okay,_rest) = parse_int(&line[1..], true);
             if okay {
                 console.tx_buffer_push(64+18);
                 let data =     unsafe {
@@ -82,7 +82,7 @@ fn execute_rx_buffer(console : &mut uart_console::Console) {
                 console.tx_buffer_push(96+18);
             }
         } else if c==64+16 { // P = poll rx
-            let (value,okay,rest) = parse_int(&line[1..], true);
+            let (value,okay,_rest) = parse_int(&line[1..], true);
             if okay {
                 let data = read_poll_result();
                 write_poll(value);
@@ -102,13 +102,13 @@ fn execute_rx_buffer(console : &mut uart_console::Console) {
 
 // This code works
 fn axi_poll_reflect (axi : &mut riscv_base::axi4s::Axi) {
-    if (axi.rx_poll()) {
+    if axi.rx_poll() {
         let do_tx = (read_poll() & 2) != 0;
         let size = axi.rx_start_packet();
         unsafe { riscv_base::sleep(100); }
         riscv_base::dprintf::wait();
         riscv_base::dprintf::write4(40,(0x504B543a,0x2087,size,0xff));
-        if (do_tx) {axi.tx_start_packet();}
+        if do_tx {axi.tx_start_packet();}
         for i in 0..size {
             let rx_d = axi.rx_read_u32_raw();
             if do_tx && (i>0) {axi.tx_write_u32_raw(rx_d);}
@@ -118,7 +118,7 @@ fn axi_poll_reflect (axi : &mut riscv_base::axi4s::Axi) {
         }
         axi.rx_end_packet();
         axi.tx_send_packet_raw((size-1)<<2);
-        if (do_tx) {axi.tx_start_packet();}
+        if do_tx {axi.tx_start_packet();}
         clear_poll(3);
     }
 }
@@ -128,7 +128,7 @@ fn axi_poll_reflect (axi : &mut riscv_base::axi4s::Axi) {
 pub extern "C" fn main() -> () {
 
     riscv_base::framebuffer::timing_configure( riscv_base::framebuffer::TIMINGS_2K );
-    riscv_base::fb_sram::set_control(0xc2);
+    riscv_base::fb_sram::set_control(0xf8); //c2);
     riscv_base::vcu108::configure_adv7511(); // not sim
     riscv_base::dprintf::wait();
     riscv_base::dprintf::write1(0,0x454e44ff);
@@ -151,13 +151,13 @@ pub extern "C" fn main() -> () {
     riscv_base::fb_sram::set_control(0xfe);
     loop {
         if (read_poll() & 1)!=0 {
-           if (axi.rx_poll()) {
+           if axi.rx_poll() {
                let do_tx = (read_poll() & 2) != 0;
                let size = axi.rx_start_packet();
                unsafe { riscv_base::sleep(100); }
                riscv_base::dprintf::wait();
                riscv_base::dprintf::write4(40,(0x504B543a,0x2087,size,0xff));
-               if (do_tx) {axi.tx_start_packet();}
+               if do_tx {axi.tx_start_packet();}
                for i in 0..size {
                    let rx_d = axi.rx_read_u32_raw();
                    if do_tx && (i>0) {axi.tx_write_u32(rx_d);} // not raw, so it updates tx_size by 1 each time
@@ -168,15 +168,13 @@ pub extern "C" fn main() -> () {
                axi.rx_end_packet();
                // axi.tx_send_packet_raw((size-1)<<2);
                axi.tx_send_packet(); // not raw, so it uses tx_size<<2 as the byte size
-               if (do_tx) {axi.tx_start_packet();}
+               if do_tx {axi.tx_start_packet();}
                clear_poll(3);
            }
         }
         uart_console::poll(&mut base_console);
         if base_console.rx_buffer_ready() {
-    riscv_base::fb_sram::set_control(0xf8);
             execute_rx_buffer(&mut base_console);
-    riscv_base::fb_sram::set_control(0xfe);
             base_console.rx_buffer_reset();
         }
     }

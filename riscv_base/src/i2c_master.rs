@@ -57,7 +57,9 @@ pub fn is_busy() -> bool {
 }
 
 pub fn wait() {
-    while is_busy() {};
+    while is_busy() {
+        unsafe {super::sleep(1000);}
+    };
 }
 
 pub fn i2c_response() -> u32 {

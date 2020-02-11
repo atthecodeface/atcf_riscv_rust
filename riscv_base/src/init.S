@@ -5,7 +5,7 @@
 .equ   __main, wait_forever
 
 //.equ SLEEP_AMOUNT, 0x400000
-.equ SLEEP_AMOUNT, 0x40
+.equ SLEEP_AMOUNT, 0x2
 
 _start:
     .cfi_startproc

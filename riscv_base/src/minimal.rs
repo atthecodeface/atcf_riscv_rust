@@ -23,6 +23,7 @@ pub const APB_I2C_MASTER:       *mut u32 = apb_dev!(12) as *mut u32;
 pub const APB_DPRINTF:      u32=2;
 pub const APB_DPRINTF_UART: u32=10;
 pub const APB_AXI4S:        u32=13;
+pub const APB_ANALYZER:     u32=14;
 
 pub const CSR_DEBUG_FB_DISP:     *mut u32 = csr_dev!(2) as *mut u32;
 pub const CSR_DEBUG_FB_TIM:      *mut u32 = csr_dev!(3) as *mut u32;

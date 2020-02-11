@@ -9,6 +9,7 @@ pub mod rv_sram;
 pub mod dprintf;
 pub mod framebuffer;
 pub mod axi4s;
+pub mod analyzer;
 pub mod ethernet;
 
 pub mod vcu108;

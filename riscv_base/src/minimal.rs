@@ -32,6 +32,7 @@ pub const CSR_USER_FB_TIM:       *mut u32 = csr_dev!(5) as *mut u32;
 
 pub const APB_RV_SRAM:          *mut u32 = csr_apb_dev!(0) as *mut u32;
 pub const APB_RISCV_DBG:        *mut u32 = csr_apb_dev!(1) as *mut u32;
+pub const APB_GBE:              *mut u32 = csr_apb_dev!(2) as *mut u32;
 
 pub fn write_dev_apb(dev:u32, offset:isize, data:u32) {
     unsafe {

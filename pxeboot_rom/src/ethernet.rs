@@ -1,15 +1,6 @@
 extern crate riscv_base;
 use riscv_base::axi4s::Axi;
 
-pub fn autonegotiate(adv:u32) {
-    riscv_base::rv_sram::set_control( (1<<28) | (0<<4) | 8 |1);
-    riscv_base::rv_sram::set_control( (1<<28) | (0<<4) | 0 |1);
-    riscv_base::rv_sram::set_control( (adv<<8) | (1<<4) | 8 |1);
-    riscv_base::rv_sram::set_control( (adv<<8) | (1<<4) | 0 |1);
-    riscv_base::rv_sram::set_control(   (1<<8) | (2<<4) | 8 |1);
-    riscv_base::rv_sram::set_control(   (1<<8) | (2<<4) | 0 |1);
-}
-
 pub struct EthernetRx <'a> {
     data : &'a mut [u8;64],
     bytes_valid : usize,
@@ -69,6 +60,8 @@ impl <'a> EthernetRx <'a> {
             false
         } else {
             let size = axi.rx_start_packet() as usize;
+            let _ = axi.rx_read_u32_raw(); // drop user
+            let size = size-1;
             self.packet_bytes = size*4;
             let size = if size>12 {12} else {size};
             unsafe {
@@ -84,30 +77,53 @@ impl <'a> EthernetRx <'a> {
         }
     }
 
-    pub fn check_dest_mac(&self) -> bool {
+    pub fn check_dest_mac(&self, mac:(u32,u16)) -> bool {
         if self.bytes_valid<12 {
             false
-        }
-        else {
-            true
+        } else {
+            let mac0 = self.be32(0) as u32;
+            let mac1 = self.be16(4) as u16;
+ riscv_base::dprintf::wait();
+ riscv_base::dprintf::write4(0,(0x4d616387, mac0 as u32,
+                             (0x830000ffu32 | ((mac1 as u32)<<8)),
+                             0 ));
+            if (mac0==0xffffffff) && (mac1==0xffff) {
+                true
+            } else if (mac0==mac.0) && (mac1==mac.1) {
+                true
+            } else {
+                false
+            }
         }
     }
         
-    pub fn is_arp_ipv4(&mut self) -> bool {
+    pub fn is_arp_ipv4(&mut self, ip:u32) -> bool {
         let ethertype = self.be16(12); // 0x0806
         let arp_htype = self.be16(14); // 1 for ethernet
         let arp_ptype = self.be16(16); // 0x0800 for ipv4
         let arp_hlen  = self.data[18]; // 6 for ethernet
         let arp_plen  = self.data[19]; // 4 for ipv4
-        // 20-31 source hardware
-        // 32-35 source ipv4
-        // 36-41 dest hardware
-        // 42-45 dest ipv4
+        let dest_ip   = self.be32(38) as u32; // our ip if for us
+        // 22-27 source hardware
+        // 28-31 source ipv4
+        // 32-37 dest hardware
+        // 38-41 dest ipv4
+ riscv_base::dprintf::wait();
+ riscv_base::dprintf::write4(0,(0x49732020,
+                             (0x83000020u32 | ((ethertype as u32)<<8)),
+                             (0x83000020u32 | ((arp_htype as u32)<<8)),
+                             (0x830000ffu32 | ((arp_ptype as u32)<<8)) ));
+ riscv_base::dprintf::wait();
+ riscv_base::dprintf::write4(0,(0x49732087, dest_ip as u32,
+                             (0x20830000u32 | ((self.bytes_valid as u32)<<0)),
+                             (0x830000ffu32 | ((arp_plen as u32)<<8)) ));
         if self.bytes_valid<46 {
             false
-        } else if ethertype!=0x0860 {
+        } else if ethertype!=0x0806 {
             false
         } else if (arp_htype!=1) || (arp_ptype!=0x0800) || (arp_hlen!=6) || (arp_plen!=4) {
+            false
+        } else if dest_ip!=ip {
             false
         } else {
             true

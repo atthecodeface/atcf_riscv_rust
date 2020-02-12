@@ -1,20 +1,42 @@
+fn set_gasket_control(data:u32) {
+    unsafe {
+        let r : *mut u32 = super::minimal::APB_GBE.offset(1);
+        core::ptr::write_volatile(r,data);
+        unsafe {super::sleep(10);}
+    };
+}
+
+pub fn get_gasket_status() -> u32 {
+    return unsafe {
+        let r : *const u32 = super::minimal::APB_GBE.offset(0);
+        core::ptr::read_volatile(r)
+    };
+}
+
+pub fn get_rx_stats() -> (u32, u32, u32) {
+    let okay_pkts = unsafe {
+        let r : *const u32 = super::minimal::APB_GBE.offset(12);
+        core::ptr::read_volatile(r)
+    };
+    let okay_bytes = unsafe {
+        let r : *const u32 = super::minimal::APB_GBE.offset(13);
+        core::ptr::read_volatile(r)
+    };
+    let errored = unsafe {
+        let r : *const u32 = super::minimal::APB_GBE.offset(14);
+        core::ptr::read_volatile(r)
+    };
+    (okay_pkts, okay_bytes, errored)
+}
+
 pub fn autonegotiate(adv:u32) {
-    super::rv_sram::set_control( (1<<20)  | (2<<4) | 1 );
-    super::rv_sram::set_control( (1<<20)  | (2<<4) | 9 );
-    super::rv_sram::set_control( (1<<20)  | (2<<4) | 1 );
-    super::rv_sram::set_control( (adv<<8) | (1<<4) | 1 );
-    super::rv_sram::set_control( (adv<<8) | (1<<4) | 9 );
-    super::rv_sram::set_control( (adv<<8) | (1<<4) | 1 );
-    unsafe {super::sleep(1<<27); }
-    super::rv_sram::set_control( (6<<8)  | (0<<4) | 1);
-    super::rv_sram::set_control( (6<<8)  | (0<<4) | 9);
-    super::rv_sram::set_control( (6<<8)  | (0<<4) | 1);
-    unsafe {super::sleep(1<<27); }
-    super::rv_sram::set_control( (7<<8)  | (0<<4) | 1);
-    super::rv_sram::set_control( (7<<8)  | (0<<4) | 9);
-    super::rv_sram::set_control( (7<<8)  | (0<<4) | 1);
-    unsafe {super::sleep(1<<27); }
-    super::rv_sram::set_control( 1 );
+    set_gasket_control( ((150*10*1000)<<4) | 2 ); // 10ms timer
+    set_gasket_control( (adv<<4) | 1 );           // advertised values
+    set_gasket_control( (5<<4) | 0 );             // enable interface, with autonegotiation on
+}
+
+pub fn no_autonegotiate() {
+    set_gasket_control( (7<<4) | 0 );             // enable interface, with autonegotiation off
 }
 
 pub fn reset(sram_size:u32) {

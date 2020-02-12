@@ -127,10 +127,9 @@ fn axi_poll_reflect (axi : &mut riscv_base::axi4s::Axi) {
 #[export_name = "__main"]
 pub extern "C" fn main() -> () {
 
-    riscv_base::analyzer::enable_source(6,3,1);
     riscv_base::framebuffer::timing_configure( riscv_base::framebuffer::TIMINGS_2K );
     riscv_base::fb_sram::set_control(0xf8); //c2);
-    //riscv_base::vcu108::configure_adv7511(); // not sim
+    riscv_base::vcu108::configure_adv7511(); // not sim
     riscv_base::dprintf::wait();
     riscv_base::dprintf::write1(0,0x454e44ff);
 
@@ -144,7 +143,7 @@ pub extern "C" fn main() -> () {
     let mut axi = riscv_base::axi4s::Axi::new(4095);
     axi.reset();
     riscv_base::dprintf::wait();
-//    unsafe { riscv_base::sleep(10000); }
+    unsafe { riscv_base::sleep(10000); }
     riscv_base::dprintf::write1(0,0x455048ff);
     riscv_base::fb_sram::set_control(0xf8);
     riscv_base::ethernet::autonegotiate(33);

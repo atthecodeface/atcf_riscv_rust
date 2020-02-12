@@ -8,15 +8,17 @@ use pxeboot::{loader, tftp};
 mod axi_socket;
 mod ethernet;
 
-
+const OUR_IP  : u32 = 0x01010102;
+const OUR_MAC : (u32, u16) = (0x44a84229, 0x88f0);
 
 #[link_section=".start"]
 #[export_name = "__main"]
 pub extern "C" fn main() -> () {
-    riscv_base::fb_sram::set_control(0x3fe);
 
+    riscv_base::fb_sram::set_control(0x303fe);
     riscv_base::framebuffer::timing_configure( riscv_base::framebuffer::TIMINGS_2K );
     riscv_base::vcu108::configure_adv7511(); // not sim
+    riscv_base::fb_sram::set_control(0x303c0);
     riscv_base::uart::config(70);
     let mut axi = riscv_base::axi4s::Axi::new(4095);
     let mut eth_rx_buf = [0u8; 64];
@@ -28,19 +30,29 @@ pub extern "C" fn main() -> () {
     unsafe { riscv_base::sleep(10000); }
     riscv_base::dprintf::write1(0,0x455448ff);
     riscv_base::ethernet::autonegotiate(33);
-    //riscv_base::fb_sram::set_control(0x3e6);
-    riscv_base::fb_sram::set_control(0x0);
+    unsafe { riscv_base::sleep(4<<24); }
+    riscv_base::ethernet::autonegotiate(33);
+    unsafe { riscv_base::sleep(4<<24); }
+    riscv_base::ethernet::autonegotiate(33);
+    riscv_base::fb_sram::set_control(0x303fe);
+    riscv_base::analyzer::enable_source(6,3,1);
     loop {
+    unsafe { riscv_base::sleep(1000); }
+//    unsafe { riscv_base::sleep(4<<24); }
+//     riscv_base::fb_sram::set_control(0x303c0);
+//     riscv_base::ethernet::get_gasket_status();
+//     riscv_base::fb_sram::set_control(0x303fe);
         if eth_rx.poll(&mut axi) {
-            if !eth_rx.check_dest_mac()  {
+// riscv_base::ethernet::get_rx_stats();
+            if !eth_rx.check_dest_mac(OUR_MAC)  {
                 riscv_base::dprintf::wait();
                 riscv_base::dprintf::write2(0,(0x42616420,0x4d6163ff));
                 eth_rx.discard(&mut axi);
-            } else if eth_rx.is_arp_ipv4() {
-                riscv_base::dprintf::write2(0,(0x41525044,0x202020ff));
+            } else if eth_rx.is_arp_ipv4(OUR_IP) {
+                riscv_base::dprintf::write2(0,(0x41525034,0x202020ff));
                 eth_rx.discard(&mut axi);
             } else if eth_rx.is_simple_ipv4() { // hdr_csum ok && 
-                riscv_base::dprintf::write2(0,(0x49505644,0x202020ff));
+                riscv_base::dprintf::write2(0,(0x49505634,0x202020ff));
                 tftp_socket.eth_poll(&mut axi, &mut eth_rx);
                 eth_rx.discard(&mut axi);
             } else  {

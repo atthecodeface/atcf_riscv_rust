@@ -86,6 +86,7 @@ impl Axi {
             }
     }
     pub fn reset(&mut self) {
+        set_rx_ptr(0);
         set_tx_ptr(0);
         write_tx_data(0);
         write_tx_config(self.sram_size);

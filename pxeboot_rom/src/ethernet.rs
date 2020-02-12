@@ -1,6 +1,84 @@
 extern crate riscv_base;
 use riscv_base::axi4s::Axi;
 
+pub struct EthernetTx <'a> {
+    data : &'a mut [u8;64],
+    bytes_valid : usize,
+    packet_bytes : usize,
+}
+
+impl <'a> EthernetTx <'a> {
+    pub fn new(buffer : &mut [u8;64] ) -> EthernetTx {
+        EthernetTx { 
+            bytes_valid: 0,
+            data : buffer,
+            packet_bytes : 0,
+            }
+    }
+
+    pub fn set_src(&mut self, mac:(u32, u16)) {
+        self.data[6]  = (mac.0>>24) as u8;
+        self.data[7]  = (mac.0>>16) as u8;
+        self.data[8]  = (mac.0>> 8) as u8;
+        self.data[9]  = (mac.0>> 0) as u8;
+        self.data[10] = (mac.1>> 8) as u8;
+        self.data[11] = (mac.1>> 0) as u8;
+    }
+    pub fn set_u8(&mut self, ofs:usize, data:u8) {
+        self.data[ofs] = data;
+    }
+    pub fn set_be32(&mut self, ofs:usize, data:u32) {
+        self.data[ofs  ]  = (data>>24) as u8;
+        self.data[ofs+1]  = (data>>16) as u8;
+        self.data[ofs+2]  = (data>> 8) as u8;
+        self.data[ofs+3]  = (data>> 0) as u8;
+    }
+    pub fn set_be16(&mut self, ofs:usize, data:u16) {
+        self.data[ofs  ]  = (data>> 8) as u8;
+        self.data[ofs+1]  = (data>> 0) as u8;
+    }
+    pub fn copy_bytes(&mut self, ofs:usize, src:&[u8]) {
+        let size = src.len();
+        for i in 0..size {
+            self.data[ofs+i] = src[i];
+        }
+    }
+
+    pub fn transmit(&mut self, axi:&mut Axi) {
+        axi.tx_start_packet();
+        if self.bytes_valid<64 {self.bytes_valid = 64; }
+        let size = (self.bytes_valid+3)>>2;
+        unsafe {
+            let mut data_ptr: *mut u32  = self.data.as_mut_ptr() as *mut u32;
+            for i in 0..size {
+                let tx_d = *data_ptr;
+                axi.tx_write_u32_raw(tx_d);
+                data_ptr = data_ptr.offset(1);
+            }
+        }
+        axi.tx_send_packet_raw(self.bytes_valid as u32);
+        self.bytes_valid = 0;
+    }
+
+    pub fn create_arp_reply(&mut self, eth_rx:&EthernetRx, mac:(u32, u16) )  {
+        // copy src mac as dest mac
+        self.copy_bytes(0, &eth_rx.data[6..12]);
+        // copy ethertype, arp_htype/ptypr/hlen/plen
+        self.copy_bytes(12, &eth_rx.data[12..20]);
+        // Make it an ARP reply
+        self.set_be16(20, 2);
+        // copy source hardware/ipv4 as dest hardware/ipv4
+        self.copy_bytes(32, &eth_rx.data[22..32]);
+        // copy dest ipv4 as source ipv4
+        self.copy_bytes(28, &eth_rx.data[38..42]);
+        // set source hw
+        self.set_be32(22, mac.0);
+        self.set_be16(26, mac.1);
+        self.bytes_valid = 42;
+    }
+
+}
+
 pub struct EthernetRx <'a> {
     data : &'a mut [u8;64],
     bytes_valid : usize,
@@ -108,15 +186,6 @@ impl <'a> EthernetRx <'a> {
         // 28-31 source ipv4
         // 32-37 dest hardware
         // 38-41 dest ipv4
- riscv_base::dprintf::wait();
- riscv_base::dprintf::write4(0,(0x49732020,
-                             (0x83000020u32 | ((ethertype as u32)<<8)),
-                             (0x83000020u32 | ((arp_htype as u32)<<8)),
-                             (0x830000ffu32 | ((arp_ptype as u32)<<8)) ));
- riscv_base::dprintf::wait();
- riscv_base::dprintf::write4(0,(0x49732087, dest_ip as u32,
-                             (0x20830000u32 | ((self.bytes_valid as u32)<<0)),
-                             (0x830000ffu32 | ((arp_plen as u32)<<8)) ));
         if self.bytes_valid<46 {
             false
         } else if ethertype!=0x0806 {

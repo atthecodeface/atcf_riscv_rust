@@ -1,8 +1,8 @@
 pub trait TftpSocket {
     fn reset(&mut self);
-    fn has_rx_data(&self) -> bool;
-    fn can_tx_data(&self) -> bool;
-    fn rx_data(&mut self, data:&mut[u8]) -> usize;
+    fn has_rx_data(&self) -> bool; // return true if UDP socket has data ready
+    fn can_tx_data(&self) -> bool; // return true if UDP socktet can transmit a packet
+    fn rx_data(&mut self, data:&mut[u8]) -> usize; // has_rx_data() has returned true; copy as much data as you have (up to data.len()) to data
     fn tx_data(&mut self, data:&[u8]) -> usize;
 }
 
@@ -20,8 +20,7 @@ pub enum TftpEvent {
     Idle,
 }
 
-pub struct Tftp <'a, T:TftpSocket> {
-    socket   : &'a mut T,
+pub struct Tftp {
     state    : TftpState,
     timeout  : u32,
 }
@@ -34,17 +33,17 @@ fn read_u16_be(data:&[u8]) -> usize {
 }
 
 
-impl <'a, T:TftpSocket> Tftp <'a, T> {
-    pub fn new(socket:&mut T) -> Tftp::<T> {
-        Tftp::<T> {socket, state:TftpState::Unconnected, timeout:0}
+impl Tftp {
+    pub fn new() -> Tftp {
+        Tftp {state:TftpState::Unconnected, timeout:0}
     }
     pub fn reset(&mut self) {
         //println!("tftp reset");
         self.state = TftpState::Unconnected;
         self.timeout = 1000;
     }
-    fn handle_rx_data( &mut self, data:&mut [u8]) -> TftpEvent {
-        let size = self.socket.rx_data(data);
+    fn handle_rx_data( &mut self, socket:&mut TftpSocket, data:&mut [u8]) -> TftpEvent {
+        let size = socket.rx_data(data);
         match self.state {
             TftpState::Unconnected => { // received data when unconnected - drop it
                 //println!("handle rx data when unconnected");
@@ -83,27 +82,27 @@ impl <'a, T:TftpSocket> Tftp <'a, T> {
             },
         }
     }
-    fn send_request(&mut self) -> TftpEvent {
+    fn send_request(&mut self, socket:&mut TftpSocket) -> TftpEvent {
         //println!("send file get request");
-        self.socket.reset();
+        socket.reset();
         let mut tx_buf : [u8;32] = [0; 32];
         tx_buf[0] = 0;
         tx_buf[1] = 1;
         tx_buf[2..8].copy_from_slice(b"banana");
         tx_buf[9..14].copy_from_slice(b"octet");
-        self.socket.tx_data(&tx_buf[..18]);
+        socket.tx_data(&tx_buf[..18]);
         self.timeout = DATA_TIMEOUT;
         self.state = TftpState::Block(1);
         TftpEvent::Connect
     }
-    fn send_ack(&mut self, block:u32, finished:bool) -> TftpEvent {
+    fn send_ack(&mut self, socket:&mut TftpSocket, block:u32, finished:bool) -> TftpEvent {
         //println!("send ack for block {:?}",block);
         let mut tx_buf : [u8;32] = [0; 32];
         tx_buf[0] = 0;
         tx_buf[1] = 4;
         tx_buf[2] = (block>>8) as u8;
         tx_buf[3] = block as u8;
-        self.socket.tx_data(&tx_buf[..4]);
+        socket.tx_data(&tx_buf[..4]);
         self.timeout = DATA_TIMEOUT;
         if finished {
             self.state = TftpState::Finished;
@@ -112,21 +111,21 @@ impl <'a, T:TftpSocket> Tftp <'a, T> {
         }
         TftpEvent::Idle
     }
-    fn handle_timeout(&mut self) -> TftpEvent {
+    fn handle_timeout(&mut self, socket:&mut TftpSocket) -> TftpEvent {
         match self.state {
             TftpState::Unconnected     => {
-                self.send_request()
+                self.send_request(socket)
             },
             TftpState::Block(expected) => {
                 if expected==1 {
-                    self.send_request()
+                    self.send_request(socket)
                 } else {
                     self.state = TftpState::Ack(expected-1,false); // Force a retry on the ack
                     TftpEvent::Idle
                 }
             },
             TftpState::Ack(expected,finished) => {
-                self.send_ack(expected,finished)
+                self.send_ack(socket,expected,finished)
             },
             TftpState::Finished => {
                 self.timeout = DATA_TIMEOUT;
@@ -134,8 +133,8 @@ impl <'a, T:TftpSocket> Tftp <'a, T> {
             },
         }
     }
-    pub fn poll(&mut self) -> bool {
-        if self.socket.has_rx_data() {
+    pub fn poll(&mut self, socket:&mut TftpSocket) -> bool {
+        if socket.has_rx_data() {
             //println!("has rx data with timeout {:?}", self.timeout);
             true
         }
@@ -148,11 +147,11 @@ impl <'a, T:TftpSocket> Tftp <'a, T> {
             false
         }
     }
-    pub fn get_event(&mut self, data:&mut [u8]) -> TftpEvent {
-        if self.socket.has_rx_data() {
-            self.handle_rx_data(data)
+    pub fn get_event(&mut self, socket:&mut TftpSocket, data:&mut [u8]) -> TftpEvent {
+        if socket.has_rx_data() {
+            self.handle_rx_data(socket, data)
         } else if self.timeout==0 {
-            self.handle_timeout()
+            self.handle_timeout(socket, )
         } else {
             TftpEvent::Idle
         }

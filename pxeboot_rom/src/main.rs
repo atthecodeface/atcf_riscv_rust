@@ -5,6 +5,7 @@ extern crate panic_halt; // you can put a breakpoint on `rust_begin_unwind` to c
 extern crate riscv_base;
 extern crate pxeboot;
 use pxeboot::{loader, tftp};
+use axi_socket::{TftpSocketAxi};
 mod axi_socket;
 mod ethernet;
 
@@ -24,9 +25,11 @@ pub extern "C" fn main() -> () {
     let mut eth_rx_buf = [0u8; 64];
     let mut eth_tx_buf = [0u8; 64];
     let mut udp_pkt_buf = [0u8; 1024];
+    let mut payload_buf = [0u8; 1024];
     let mut eth_rx = ethernet::EthernetRx::new(&mut eth_rx_buf);
     let mut eth_tx = ethernet::EthernetTx::new(&mut eth_tx_buf);
-    let mut tftp_socket = axi_socket::TftpSocketAxi::new((172,20,2,153), &mut udp_pkt_buf);
+    let mut tftp_socket = TftpSocketAxi::new((172,20,2,153), &mut udp_pkt_buf);
+    let mut tftp = tftp::Tftp::new();
     eth_tx.set_src(OUR_MAC);
     axi.reset();
     riscv_base::dprintf::wait();
@@ -61,7 +64,7 @@ pub extern "C" fn main() -> () {
                 eth_tx.create_arp_reply(&eth_rx, OUR_MAC);
                 eth_tx.transmit(&mut axi);
                 eth_rx.discard(&mut axi);
-            } else if eth_rx.is_simple_ipv4() { // hdr_csum ok && 
+            } else if eth_rx.is_simple_ipv4(OUR_IP) { // hdr_csum ok && 
                 riscv_base::dprintf::write2(0,(0x49505634,0x202020ff));
                 tftp_socket.eth_poll(&mut axi, &mut eth_rx);
                 eth_rx.discard(&mut axi);
@@ -70,6 +73,26 @@ pub extern "C" fn main() -> () {
                 eth_rx.discard(&mut axi);
             }
         }
+        if tftp.poll(&mut tftp_socket) {
+            match tftp.get_event(&mut tftp_socket, &mut payload_buf) {
+                tftp::TftpEvent::Connect        => {
+                       riscv_base::dprintf::write2(0,(0x546f7470,0x20434fff));
+                       //loader.reset();
+                },
+                tftp::TftpEvent::Data(ofs,size) => {
+                       riscv_base::dprintf::write2(0,(0x546f7470,0x204441ff));
+                       //{let _=loader.rx_data(&subloader, &buf[ofs..], size);
+                       },
+                tftp::TftpEvent::Error          => {
+                       riscv_base::dprintf::write2(0,(0x546f7470,0x204552ff));
+                       tftp.reset();
+                },
+                tftp::TftpEvent::Idle           => {
+                       riscv_base::dprintf::write2(0,(0x546f7470,0x204964ff));
+                },
+            }
+        }
+
     }
 /*
         uart_console::poll(&mut base_console);

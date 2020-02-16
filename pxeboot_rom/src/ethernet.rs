@@ -199,7 +199,7 @@ impl <'a> EthernetRx <'a> {
         }
     }
 
-    pub fn is_simple_ipv4(&mut self) -> bool {
+    pub fn is_simple_ipv4(&self, ip:u32) -> bool {
         let ethertype = self.be16(12); // 0x0800
         let ipv4_vh = self.data[14];
         let ipv4_dscp_ecn = self.data[15];
@@ -209,8 +209,8 @@ impl <'a> EthernetRx <'a> {
         let ipv4_ttl             = self.data[22];
         let ipv4_proto           = self.data[23]; // 0x11 for UDP
         let ipv4_hdr_csum        = self.be16(24);
-        let ipv4_src_ip          = self.be32(26);
-        let ipv4_dest_ip         = self.be32(30);
+        let ipv4_src_ip          = self.be32(26) as u32;
+        let ipv4_dest_ip         = self.be32(30) as u32;
         let ipv4_src_port        = self.be16(34); // Assumes udp/tcp - not part of IPV4 header
         let ipv4_dest_port       = self.be16(36);
         let ipv4_udp_length      = self.be16(38);
@@ -223,29 +223,58 @@ impl <'a> EthernetRx <'a> {
             false
         } else if (ipv4_payload_length+14>self.packet_bytes) || (ipv4_payload_length<20) {
             false
+        } else if ip != ipv4_dest_ip {
+            false
         } else {
             true
         }
     }
         
-    pub fn rx_packet(&mut self, axi:&mut Axi, data:&mut [u8]) -> bool {
-        if self.bytes_valid==0 {
+    pub fn is_udp(&self, port:u16) -> bool { // assumes it is already ipv4 (and simple)
+        let ipv4_proto           = self.data[23]; // 0x11 for UDP
+        let ipv4_dest_port       = self.be16(36) as u16;
+        let ipv4_udp_length      = self.be16(38);
+        let ipv4_udp_csum        = self.be16(40); // ones complement of source ip, dest ip, zero/protocol 0x0011, udp length (twice), source port, dest port, and udp payload (padded with 0)
+        // if udp && dest_port==client_port && udp csum okay && long enough
+        if ipv4_proto!=0x11 {
+            false
+        } else if ipv4_dest_port!=port {
             false
         } else {
-            false
-                /*
-            let size = axi.rx_start_packet() as usize;
-            self.packet_bytes = size*4;
-            let size = if size>16 {16} else {size};
-            for i in 0..self.bytes_valid {
-                data
-                self.data[i*4+0] = (rx_d >> 0) as u8;
-                self.data[i*4+1] = (rx_d >> 8) as u8;
-                self.data[i*4+2] = (rx_d >>16) as u8;
-                self.data[i*4+3] = (rx_d >>24) as u8;
+            true
+        }
+    }
+        
+    pub fn ipv4_src_ip(&self) -> u32 {
+        let ipv4_src_ip          = self.be32(26) as u32;
+        ipv4_src_ip
+        }
+
+    pub fn ipv4_src_port(&self) -> u16 {
+        let ipv4_src_port        = self.be16(34) as u16;
+        ipv4_src_port
+        }
+        
+    pub fn copy_udp_payload(&self, axi:&mut Axi, data:&mut [u8]) -> usize {
+        // payload starts at byte 42
+        if self.bytes_valid<42 {
+            0
+        } else {
+            for i in 0..(self.bytes_valid-42) {
+                data[i] = self.data[42+i];
             }
-            self.bytes_valid = size*4;
-            true*/
+            let num_bytes = data.len();
+            let num_bytes = if num_bytes>self.packet_bytes {self.packet_bytes} else {num_bytes};
+            let words = (num_bytes - self.bytes_valid)>>2;
+            for i in 0..words {
+                let rx_d = axi.rx_read_u32_raw();
+                let ofs = 42 + i<<2;
+                data[ofs+0] = (rx_d >> 0) as u8;
+                data[ofs+1] = (rx_d >> 8) as u8;
+                data[ofs+2] = (rx_d >>16) as u8;
+                data[ofs+3] = (rx_d >>24) as u8;
+            }
+            num_bytes
         }
         
     }

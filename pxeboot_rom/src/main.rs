@@ -79,19 +79,19 @@ pub extern "C" fn main() -> () {
             let tftp_event = tftp.get_event(&mut tftp_socket, &mut payload_buf);
             match tftp_event {
                 tftp::TftpEvent::Connect        => {
-                    riscv_base::dprintf::write2(0,(0x546f7470,0x20434fff));
+                    riscv_base::dprintf::write2(0,(0x54667470,0x20434fff));
                     //loader.reset();
                 },
                 tftp::TftpEvent::Data(ofs,size) => {
-                    riscv_base::dprintf::write2(0,(0x546f7470,0x204441ff));
+                    riscv_base::dprintf::write2(0,(0x54667470,0x204441ff));
                     //{let _=loader.rx_data(&subloader, &buf[ofs..], size);
                 },
                 tftp::TftpEvent::Error          => {
-                    riscv_base::dprintf::write2(0,(0x546f7470,0x204552ff));
+                    riscv_base::dprintf::write2(0,(0x54667470,0x204552ff));
                     tftp.reset();
                 },
                 tftp::TftpEvent::Idle           => {
-                    riscv_base::dprintf::write2(0,(0x546f7470,0x204964ff));
+                    riscv_base::dprintf::write2(0,(0x54667470,0x204964ff));
                 },
             }
         }

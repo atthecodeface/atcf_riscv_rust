@@ -22,7 +22,7 @@ impl <'a> TftpSocketAxi <'a> {
                             ((addr.2 as u32) << 8) |        
                             ((addr.3 as u32) << 0);
         let server_port = 69;
-        let server_mac = (0,0);
+        let server_mac = (0xffffffff,0xffff);
         let client_port = 12345;
         let rx_bytes_valid = 0;
         let tx_bytes_valid = 0;

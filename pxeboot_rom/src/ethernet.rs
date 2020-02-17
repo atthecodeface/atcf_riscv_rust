@@ -112,7 +112,7 @@ impl <'a> EthernetTx <'a> {
 
     pub fn create_udp_ipv4_pkt_hdr(&mut self, src_port:u16, src_ipv4:u32, dest_mac:(u32, u16), dest_ipv4:u32, dest_port:u16, udp_payload_bytes:usize )  {
         self.set_be32(0, dest_mac.0);
-        self.set_be16(6, dest_mac.1);
+        self.set_be16(4, dest_mac.1);
         self.set_be16(12, 0x0800u16); // ethertype
         let ipv4_payload_length = 20 + udp_payload_bytes + 8; // 8 is 2xu16 ports + u16 length + u16 csum
         let ipv4_identification  = 0;

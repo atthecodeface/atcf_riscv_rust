@@ -24,11 +24,12 @@ pub extern "C" fn main() -> () {
     let mut axi = riscv_base::axi4s::Axi::new(4095);
     let mut eth_rx_buf = [0u8; 64];
     let mut eth_tx_buf = [0u8; 64];
-    let mut udp_pkt_buf = [0u8; 1024];
+    let mut udp_rx_pkt_buf = [0u8; 768];
+    let mut udp_tx_pkt_buf = [0u8; 256];
     let mut payload_buf = [0u8; 1024];
     let mut eth_rx = ethernet::EthernetRx::new(&mut eth_rx_buf);
     let mut eth_tx = ethernet::EthernetTx::new(&mut eth_tx_buf);
-    let mut tftp_socket = TftpSocketAxi::new((172,20,2,153), &mut udp_pkt_buf);
+    let mut tftp_socket = TftpSocketAxi::new((172,20,2,153), &mut udp_rx_pkt_buf, &mut udp_tx_pkt_buf);
     let mut tftp = tftp::Tftp::new();
     eth_tx.set_src(OUR_MAC);
     axi.reset();
@@ -41,19 +42,19 @@ pub extern "C" fn main() -> () {
     let mut loop_count : usize = 0;
     loop {
         unsafe { riscv_base::sleep(1000); }
-         loop_count = loop_count+1;
-         if loop_count>0x40000 {
-     riscv_base::fb_sram::set_control(0x303c0);
-     let gasket_status = riscv_base::ethernet::get_gasket_status();
-     if (gasket_status&0xffff)!=0xd801 {
-         riscv_base::ethernet::disable();
-         riscv_base::ethernet::autonegotiate(33);
-     }
-     riscv_base::ethernet::get_rx_stats();
-     riscv_base::ethernet::get_tx_stats();
-     riscv_base::fb_sram::set_control(0x303fe);
-     loop_count = 0;
-}
+        loop_count = loop_count+1;
+        if loop_count>0x40000 {
+            riscv_base::fb_sram::set_control(0x303c0);
+            let gasket_status = riscv_base::ethernet::get_gasket_status();
+            if (gasket_status&0xffff)!=0xd801 {
+                riscv_base::ethernet::disable();
+                riscv_base::ethernet::autonegotiate(33);
+            }
+            riscv_base::ethernet::get_rx_stats();
+            riscv_base::ethernet::get_tx_stats();
+            riscv_base::fb_sram::set_control(0x303fe);
+            loop_count = 0;
+        }
         if eth_rx.poll(&mut axi) {
             if !eth_rx.check_dest_mac(OUR_MAC)  {
                 riscv_base::dprintf::wait();
@@ -66,41 +67,43 @@ pub extern "C" fn main() -> () {
                 eth_rx.discard(&mut axi);
             } else if eth_rx.is_simple_ipv4(OUR_IP) { // hdr_csum ok && 
                 riscv_base::dprintf::write2(0,(0x49505634,0x202020ff));
-                tftp_socket.eth_poll(&mut axi, &mut eth_rx);
+                tftp_socket.eth_poll_rx(&mut axi, &mut eth_rx);
                 eth_rx.discard(&mut axi);
             } else  {
                 riscv_base::dprintf::write2(0,(0x44726f70,0x202020ff));
                 eth_rx.discard(&mut axi);
             }
         }
+        tftp_socket.eth_poll_tx(&mut axi, &mut eth_tx, OUR_IP);
         if tftp.poll(&mut tftp_socket) {
-            match tftp.get_event(&mut tftp_socket, &mut payload_buf) {
+            let tftp_event = tftp.get_event(&mut tftp_socket, &mut payload_buf);
+            match tftp_event {
                 tftp::TftpEvent::Connect        => {
-                       riscv_base::dprintf::write2(0,(0x546f7470,0x20434fff));
-                       //loader.reset();
+                    riscv_base::dprintf::write2(0,(0x546f7470,0x20434fff));
+                    //loader.reset();
                 },
                 tftp::TftpEvent::Data(ofs,size) => {
-                       riscv_base::dprintf::write2(0,(0x546f7470,0x204441ff));
-                       //{let _=loader.rx_data(&subloader, &buf[ofs..], size);
-                       },
+                    riscv_base::dprintf::write2(0,(0x546f7470,0x204441ff));
+                    //{let _=loader.rx_data(&subloader, &buf[ofs..], size);
+                },
                 tftp::TftpEvent::Error          => {
-                       riscv_base::dprintf::write2(0,(0x546f7470,0x204552ff));
-                       tftp.reset();
+                    riscv_base::dprintf::write2(0,(0x546f7470,0x204552ff));
+                    tftp.reset();
                 },
                 tftp::TftpEvent::Idle           => {
-                       riscv_base::dprintf::write2(0,(0x546f7470,0x204964ff));
+                    riscv_base::dprintf::write2(0,(0x546f7470,0x204964ff));
                 },
             }
         }
 
     }
-/*
-        uart_console::poll(&mut base_console);
-        if base_console.rx_buffer_ready() {
-            execute_rx_buffer(&mut base_console);
-            base_console.rx_buffer_reset();
-        }
-    }
+    /*
+    uart_console::poll(&mut base_console);
+    if base_console.rx_buffer_ready() {
+    execute_rx_buffer(&mut base_console);
+    base_console.rx_buffer_reset();
+}
+}
     let mut okay = true;
     let mut buf : [u8;4096] = [0; 4096];
     let mut tx_buf : [u8;128] = [0; 128];
@@ -109,14 +112,14 @@ pub extern "C" fn main() -> () {
     let mut loader = loader::Loader::<loader::DebugSubLoader>::new(&mut loader_buffer);
     let mut tftp = tftp::Tftp::<tftp_posix::TftpSocketPosix>::new(&mut tftp_socket);
     loop {
-        if tftp.poll() {
-            match tftp.get_event(&mut buf) {
-                tftp::TftpEvent::Connect        => loader.reset(),
-                tftp::TftpEvent::Data(ofs,size) => {let _=loader.rx_data(&subloader, &buf[ofs..], size);},
-                tftp::TftpEvent::Error          => tftp.reset(),
-                tftp::TftpEvent::Idle           => (),
-            }
-        }
-    }
-*/
+    if tftp.poll() {
+    match tftp.get_event(&mut buf) {
+    tftp::TftpEvent::Connect        => loader.reset(),
+    tftp::TftpEvent::Data(ofs,size) => {let _=loader.rx_data(&subloader, &buf[ofs..], size);},
+    tftp::TftpEvent::Error          => tftp.reset(),
+    tftp::TftpEvent::Idle           => (),
+}
+}
+}
+     */
 }

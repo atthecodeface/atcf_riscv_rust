@@ -24,9 +24,9 @@ impl <'a> EthernetTx <'a> {
         self.data[10] = (mac.1>> 8) as u8;
         self.data[11] = (mac.1>> 0) as u8;
     }
-    pub fn set_u8(&mut self, ofs:usize, data:u8) {
-        self.data[ofs] = data;
-    }
+    // pub fn set_u8(&mut self, ofs:usize, data:u8) {
+    //     self.data[ofs] = data;
+    // }
     pub fn set_be32(&mut self, ofs:usize, data:u32) {
         self.data[ofs  ]  = (data>>24) as u8;
         self.data[ofs+1]  = (data>>16) as u8;
@@ -50,13 +50,46 @@ impl <'a> EthernetTx <'a> {
         let size = (self.bytes_valid+3)>>2;
         unsafe {
             let mut data_ptr: *mut u32  = self.data.as_mut_ptr() as *mut u32;
-            for i in 0..size {
+            for _ in 0..size {
                 let tx_d = *data_ptr;
                 axi.tx_write_u32_raw(tx_d);
                 data_ptr = data_ptr.offset(1);
             }
         }
         axi.tx_send_packet_raw(self.bytes_valid as u32);
+        self.bytes_valid = 0;
+    }
+
+    pub fn transmit_with_data(&mut self, axi:&mut Axi, data:&[u8], data_size:usize ) {
+        axi.tx_start_packet();
+        let last_word = self.bytes_valid>>2;
+        unsafe {
+            let mut data_ptr: *mut u32  = self.data.as_mut_ptr() as *mut u32;
+            for _ in 0..last_word {
+                let tx_d = *data_ptr;
+                axi.tx_write_u32_raw(tx_d);
+                data_ptr = data_ptr.offset(1);
+            }
+        }
+        let spare_bytes = self.bytes_valid&3;
+        let mut spare_data = 0u32;
+        let mut spare_bytes_valid = spare_bytes;
+        for i in 0..spare_bytes {
+            spare_data = spare_data | ((self.data[(last_word<<2)+i] as u32) << (8*i));
+        }
+        for i in 0..data_size {
+            if spare_bytes_valid==4 {
+                axi.tx_write_u32_raw(spare_data);
+                spare_data = 0;
+                spare_bytes_valid = 0;
+            }
+            spare_data = spare_data | ((data[i] as u32) << (8*spare_bytes_valid));
+            spare_bytes_valid = spare_bytes_valid + 1;
+        }
+        axi.tx_write_u32_raw(spare_data);
+        let total_bytes = self.bytes_valid + data_size;
+        let total_bytes = if total_bytes<64 {64} else {total_bytes};
+        axi.tx_send_packet_raw(total_bytes as u32);
         self.bytes_valid = 0;
     }
 
@@ -74,6 +107,34 @@ impl <'a> EthernetTx <'a> {
         // set source hw
         self.set_be32(22, mac.0);
         self.set_be16(26, mac.1);
+        self.bytes_valid = 42;
+    }
+
+    pub fn create_udp_ipv4_pkt_hdr(&mut self, src_port:u16, src_ipv4:u32, dest_mac:(u32, u16), dest_ipv4:u32, dest_port:u16, udp_payload_bytes:usize )  {
+        self.set_be32(0, dest_mac.0);
+        self.set_be16(6, dest_mac.1);
+        self.set_be16(12, 0x0800u16); // ethertype
+        let ipv4_payload_length = 20 + udp_payload_bytes + 8; // 8 is 2xu16 ports + u16 length + u16 csum
+        let ipv4_identification  = 0;
+        let ipv4_version         = 0x4500;
+        let ipv4_fragment        = 0;
+        let ipv4_ttl_proto       = 0x4011; // 0x11 for UDP
+        let ipv4_src_ip  = src_ipv4 as usize;
+        let ipv4_dest_ip = dest_ipv4 as usize;
+        let ipv4_hdr_csum        = ipv4_version + ipv4_payload_length + ipv4_identification + ipv4_fragment + ipv4_ttl_proto + (ipv4_dest_ip >> 16) + (ipv4_dest_ip & 0xffff) + (ipv4_src_ip >> 16) + (ipv4_src_ip & 0xffff);
+        let ipv4_hdr_csum        = (ipv4_hdr_csum & 0xffff) + (ipv4_hdr_csum>>16); // max of 0x1fffe
+        let ipv4_hdr_csum        = (ipv4_hdr_csum & 0xffff) + (ipv4_hdr_csum>>16); // max of 0xffff
+        self.set_be16(16, ipv4_payload_length as u16);
+        self.set_be16(18, ipv4_identification as u16);
+        self.set_be16(20, ipv4_fragment as u16);
+        self.set_be16(22, ipv4_ttl_proto as u16);
+        self.set_be16(24, ipv4_hdr_csum as u16);
+        self.set_be32(26, ipv4_src_ip as u32);
+        self.set_be32(30, ipv4_dest_ip as u32);
+        self.set_be16(34, src_port );
+        self.set_be16(36, dest_port );
+        self.set_be16(38, udp_payload_bytes as u16);
+        self.set_be16(40, 0); // No UDP checksum as yet // ones complement of source ip, dest ip, zero/protocol 0x0011, udp length (twice), source port, dest port, and udp payload (padded with 0)
         self.bytes_valid = 42;
     }
 
@@ -144,7 +205,7 @@ impl <'a> EthernetRx <'a> {
             let size = if size>12 {12} else {size};
             unsafe {
                 let mut data_ptr: *mut u32  = self.data.as_mut_ptr() as *mut u32;
-                for i in 0..size {
+                for _ in 0..size {
                     let rx_d = axi.rx_read_u32_raw();
                     *data_ptr = rx_d;
                     data_ptr = data_ptr.offset(1);
@@ -202,19 +263,19 @@ impl <'a> EthernetRx <'a> {
     pub fn is_simple_ipv4(&self, ip:u32) -> bool {
         let ethertype = self.be16(12); // 0x0800
         let ipv4_vh = self.data[14];
-        let ipv4_dscp_ecn = self.data[15];
+        // let ipv4_dscp_ecn = self.data[15];
         let ipv4_payload_length  = self.be16(16);
-        let ipv4_identification  = self.be16(18);
-        let ipv4_fragment        = self.be16(20);
-        let ipv4_ttl             = self.data[22];
-        let ipv4_proto           = self.data[23]; // 0x11 for UDP
-        let ipv4_hdr_csum        = self.be16(24);
-        let ipv4_src_ip          = self.be32(26) as u32;
+        // let ipv4_identification  = self.be16(18);
+        // let ipv4_fragment        = self.be16(20);
+        // let ipv4_ttl             = self.data[22];
+        // let ipv4_proto           = self.data[23]; // 0x11 for UDP
+        // let ipv4_hdr_csum        = self.be16(24);
+        // let ipv4_src_ip          = self.be32(26) as u32;
         let ipv4_dest_ip         = self.be32(30) as u32;
-        let ipv4_src_port        = self.be16(34); // Assumes udp/tcp - not part of IPV4 header
-        let ipv4_dest_port       = self.be16(36);
-        let ipv4_udp_length      = self.be16(38);
-        let ipv4_udp_csum        = self.be16(40); // ones complement of source ip, dest ip, zero/protocol 0x0011, udp length (twice), source port, dest port, and udp payload (padded with 0)
+        // let ipv4_src_port        = self.be16(34); // Assumes udp/tcp - not part of IPV4 header
+        // let ipv4_dest_port       = self.be16(36);
+        // let ipv4_udp_length      = self.be16(38);
+        // let ipv4_udp_csum        = self.be16(40); // ones complement of source ip, dest ip, zero/protocol 0x0011, udp length (twice), source port, dest port, and udp payload (padded with 0)
         if self.bytes_valid<40 {
             false
         } else if ethertype!=0x0800 {
@@ -233,8 +294,8 @@ impl <'a> EthernetRx <'a> {
     pub fn is_udp(&self, port:u16) -> bool { // assumes it is already ipv4 (and simple)
         let ipv4_proto           = self.data[23]; // 0x11 for UDP
         let ipv4_dest_port       = self.be16(36) as u16;
-        let ipv4_udp_length      = self.be16(38);
-        let ipv4_udp_csum        = self.be16(40); // ones complement of source ip, dest ip, zero/protocol 0x0011, udp length (twice), source port, dest port, and udp payload (padded with 0)
+        // let ipv4_udp_length      = self.be16(38);
+        // let ipv4_udp_csum        = self.be16(40); // ones complement of source ip, dest ip, zero/protocol 0x0011, udp length (twice), source port, dest port, and udp payload (padded with 0)
         // if udp && dest_port==client_port && udp csum okay && long enough
         if ipv4_proto!=0x11 {
             false
@@ -253,6 +314,10 @@ impl <'a> EthernetRx <'a> {
     pub fn ipv4_src_port(&self) -> u16 {
         let ipv4_src_port        = self.be16(34) as u16;
         ipv4_src_port
+        }
+        
+    pub fn eth_src_mac(&self) -> (u32, u16) {
+        (self.be32(6) as u32,self.be16(10) as u16)
         }
         
     pub fn copy_udp_payload(&self, axi:&mut Axi, data:&mut [u8]) -> usize {

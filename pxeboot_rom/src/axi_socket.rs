@@ -1,4 +1,4 @@
-use super::tftp::{TftpSocket};
+use pxeboot::tftp::{TftpSocket};
 use super::ethernet::{EthernetRx, EthernetTx};
 extern crate riscv_base;
 use riscv_base::axi4s::Axi;
@@ -77,14 +77,6 @@ impl <'a> TftpSocket for TftpSocketAxi <'a> {
             self.tx_pkt_buffer[i] = data[i];
         }
         self.tx_bytes_valid = size;
-            unsafe {
-                let mut data_ptr: *mut u32  = self.tx_pkt_buffer.as_mut_ptr() as *mut u32;
-                for _ in 0..16 {
-                    let d = *data_ptr;
-                    riscv_base::dprintf::write4(0,(0x87,d,0xffffffff,0));
-                    data_ptr = data_ptr.offset(1);
-                }
-            }
         size
     }
 }

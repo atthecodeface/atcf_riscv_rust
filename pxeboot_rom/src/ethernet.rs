@@ -341,7 +341,7 @@ impl <'a> EthernetRx <'a> {
             let payload_len = self.udp_payload_length();
             let data_len = data.len();
             let num_bytes = if payload_len<data_len {payload_len} else {data_len}; // 516
-            let words = (num_bytes - from_buf)>>2; // presumably 0x204>>2 = 0x81 = 129
+            let words = (num_bytes - from_buf + 3)>>2; // presumably 0x204>>2 = 0x81 = 129
             // riscv_base::dprintf::write4(0,(0x87,num_bytes as u32,0xffffffff,0)); // 0x20a (expected to be 0x204 I think)
             // riscv_base::dprintf::write4(0,(0x87,self.bytes_valid as u32,0xffffffff,0)); // 0x30
             for i in 0..words {

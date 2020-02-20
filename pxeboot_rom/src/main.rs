@@ -4,10 +4,13 @@
 extern crate panic_halt; // you can put a breakpoint on `rust_begin_unwind` to catch panics
 extern crate riscv_base;
 extern crate pxeboot;
-use pxeboot::{loader, loader_debug, tftp};
+use pxeboot::loader::Loader;
+use pxeboot::tftp::{Tftp, TftpEvent};
 use axi_socket::{TftpSocketAxi};
 mod axi_socket;
 mod ethernet;
+mod loader;
+use loader::{SubLoader};
 
 const SERVER_IP : (u8,u8,u8,u8) = (1,1,1,1);//(172,20,2,153);
 const OUR_IP  : u32 = 0x01010102;
@@ -32,9 +35,9 @@ pub extern "C" fn main() -> () {
     let mut eth_rx = ethernet::EthernetRx::new(&mut eth_rx_buf);
     let mut eth_tx = ethernet::EthernetTx::new(&mut eth_tx_buf);
     let mut tftp_socket = TftpSocketAxi::new(SERVER_IP, &mut udp_rx_pkt_buf, &mut udp_tx_pkt_buf);
-    let mut tftp = tftp::Tftp::new();
-    let mut loader = loader::Loader::<loader_debug::DebugSubLoader>::new(&mut loader_buffer);
-    let subloader = loader_debug::DebugSubLoader {};
+    let mut tftp = Tftp::new();
+    let mut loader = Loader::<SubLoader>::new(&mut loader_buffer);
+    let subloader = SubLoader::new();
     eth_tx.set_src(OUR_MAC);
     axi.reset();
     riscv_base::dprintf::wait();
@@ -79,19 +82,19 @@ pub extern "C" fn main() -> () {
         if tftp.poll(&mut tftp_socket) {
             let tftp_event = tftp.get_event(&mut tftp_socket, &mut payload_buf);
             match tftp_event {
-                tftp::TftpEvent::Connect        => {
+                TftpEvent::Connect        => {
                     riscv_base::dprintf::write2(0,(0x54667470,0x20434fff));
                     loader.reset();
                 },
-                tftp::TftpEvent::Data(ofs,size) => {
+                TftpEvent::Data(ofs,size) => {
                     riscv_base::dprintf::write2(0,(0x54667470,0x204441ff));
                     let _=loader.rx_data(&subloader, &payload_buf[ofs..], size);
                 },
-                tftp::TftpEvent::Error          => {
+                TftpEvent::Error          => {
                     riscv_base::dprintf::write2(0,(0x54667470,0x204552ff));
                     tftp.reset();
                 },
-                tftp::TftpEvent::Idle           => {
+                TftpEvent::Idle           => {
                     //riscv_base::dprintf::write2(0,(0x54667470,0x204964ff));
                 },
             }

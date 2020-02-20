@@ -26,6 +26,8 @@ fn parse_int(line : &[u8], okay : bool) -> ( u32, bool, &[u8]) {
     }
 }
 
+#[export_name = "_pxebootStart"]
+pub static pxebootStart:u32 = 0;
 static mut POLL_FLAGS:u32 = 0;
 static mut POLL_RESULT:u32 = 0;
 fn write_poll(d:u32) {

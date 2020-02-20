@@ -1,7 +1,7 @@
 ENTRY(_start);
 SECTIONS
 {
-  . = 0x0;
+  . = DEFINED(_pxebootStart) ? 0x4000:0x0;
   .start : {
     KEEP(*(.vectors));
     KEEP(*(.start));
@@ -17,16 +17,23 @@ SECTIONS
     *(.data*)
     . = ALIGN(4); /* required by lld */
    } 
-  . = 0x3f00;
+  . = 0x3f00; /* Preserve 256 bytes at top of 16kB */
+  . = DEFINED(_pxebootStart) ? 0x7f00:0x3f00;
   .stack : {
     _estack = .;
     _stack_base = .;
-    *(.stack)
-    PROVIDE(_stack_end$ = . + 0x200);
   }
   /* Discard .eh_frame, we are not doing unwind on panic so it is not needed */
   /DISCARD/ :
   {
     *(.eh_frame);
   }
+/*
+    *(.debug*);
+    *(.symtab*);
+    *(.comment*);
+    *(.shstrtab*);
+
+ . = 0x10000;
+*/
 }

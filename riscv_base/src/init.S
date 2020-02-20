@@ -25,9 +25,9 @@ _start:
     li      s4, 0xc0
     sw      s4,8(s3) # 470008 - FB SRAM control
 
-    lui     a0,0x190
-    li      a1,53
-    sw      a1,4(a0)
+//    lui     a0,0x190
+//    li      a1,53
+//    sw      a1,4(a0)
 
     li a0, SLEEP_AMOUNT
 start_pause:    

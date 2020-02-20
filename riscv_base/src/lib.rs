@@ -21,5 +21,6 @@ extern crate libc;
 
 extern {
     pub fn sleep(delay:u32) -> ();
+    pub fn exec_at(dest:u32) -> ();
 }
 

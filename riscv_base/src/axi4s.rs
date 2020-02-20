@@ -100,13 +100,15 @@ impl Axi {
     // Mark the packet as ready for submission given a byte size
     pub fn tx_send_packet_raw(&mut self, byte_size:u32) {
         let word_size = (byte_size+3)>>2;
+        let mut next_tx_ptr = (self.tx_ptr + 2 + word_size);
+        if next_tx_ptr >= self.sram_size {
+            next_tx_ptr -= self.sram_size;
+        }
+        set_tx_ptr(next_tx_ptr);
         write_tx_data(0); 
         set_tx_ptr(self.tx_ptr);
         write_tx_data(byte_size);
-        self.tx_ptr = (self.tx_ptr + 2 + word_size);
-        if self.tx_ptr >= self.sram_size {
-            self.tx_ptr -= self.sram_size;
-        }
+        self.tx_ptr = next_tx_ptr
     }
 
     // Write a single word into the tx buffer

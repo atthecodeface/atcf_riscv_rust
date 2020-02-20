@@ -47,3 +47,19 @@ pub fn read_dev_apb(dev:u32, offset:isize) -> u32 {
         core::ptr::read_volatile(r.offset(offset))
     }
 }
+
+macro_rules! read_dev_apb_fn {
+    ($func_name:ident, $dev:expr, $ofs:expr) => {
+        pub fn $func_name() -> u32 {
+            super::minimal::read_dev_apb($dev, $ofs)
+        }
+     }
+}
+
+macro_rules! write_dev_apb_fn {
+    ($func_name:ident, $dev:expr, $ofs:expr) => {
+        pub fn $func_name(data:u32) {
+            super::minimal::write_dev_apb($dev, $ofs, data)
+        }
+     }
+}

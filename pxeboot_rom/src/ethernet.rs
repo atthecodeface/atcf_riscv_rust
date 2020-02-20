@@ -68,6 +68,7 @@ impl <'a> EthernetTx <'a> {
             for _ in 0..last_word {
                 let tx_d = *data_ptr;
                 axi.tx_write_u32_raw(tx_d);
+                // riscv_base::dprintf::write4(0,(0x87,tx_d,0xffffffff,0));
                 data_ptr = data_ptr.offset(1);
             }
         }
@@ -80,6 +81,7 @@ impl <'a> EthernetTx <'a> {
         for i in 0..data_size {
             if spare_bytes_valid==4 {
                 axi.tx_write_u32_raw(spare_data);
+                // riscv_base::dprintf::write4(0,(0x87,spare_data,0xffffffff,0));
                 spare_data = 0;
                 spare_bytes_valid = 0;
             }
@@ -87,6 +89,7 @@ impl <'a> EthernetTx <'a> {
             spare_bytes_valid = spare_bytes_valid + 1;
         }
         axi.tx_write_u32_raw(spare_data);
+        // riscv_base::dprintf::write4(0,(0x87,spare_data,0xffffffff,0));
         let total_bytes = self.bytes_valid + data_size;
         let total_bytes = if total_bytes<64 {64} else {total_bytes};
         axi.tx_send_packet_raw(total_bytes as u32);
@@ -124,6 +127,8 @@ impl <'a> EthernetTx <'a> {
         let ipv4_hdr_csum        = ipv4_version + ipv4_payload_length + ipv4_identification + ipv4_fragment + ipv4_ttl_proto + (ipv4_dest_ip >> 16) + (ipv4_dest_ip & 0xffff) + (ipv4_src_ip >> 16) + (ipv4_src_ip & 0xffff);
         let ipv4_hdr_csum        = (ipv4_hdr_csum & 0xffff) + (ipv4_hdr_csum>>16); // max of 0x1fffe
         let ipv4_hdr_csum        = (ipv4_hdr_csum & 0xffff) + (ipv4_hdr_csum>>16); // max of 0xffff
+        let ipv4_hdr_csum        = (ipv4_hdr_csum ^ 0xffff);
+        self.set_be16(14, ipv4_version as u16);
         self.set_be16(16, ipv4_payload_length as u16);
         self.set_be16(18, ipv4_identification as u16);
         self.set_be16(20, ipv4_fragment as u16);
@@ -133,7 +138,7 @@ impl <'a> EthernetTx <'a> {
         self.set_be32(30, ipv4_dest_ip as u32);
         self.set_be16(34, src_port );
         self.set_be16(36, dest_port );
-        self.set_be16(38, udp_payload_bytes as u16);
+        self.set_be16(38, (udp_payload_bytes+8) as u16);
         self.set_be16(40, 0); // No UDP checksum as yet // ones complement of source ip, dest ip, zero/protocol 0x0011, udp length (twice), source port, dest port, and udp payload (padded with 0)
         self.bytes_valid = 42;
     }
@@ -294,7 +299,6 @@ impl <'a> EthernetRx <'a> {
     pub fn is_udp(&self, port:u16) -> bool { // assumes it is already ipv4 (and simple)
         let ipv4_proto           = self.data[23]; // 0x11 for UDP
         let ipv4_dest_port       = self.be16(36) as u16;
-        // let ipv4_udp_length      = self.be16(38);
         // let ipv4_udp_csum        = self.be16(40); // ones complement of source ip, dest ip, zero/protocol 0x0011, udp length (twice), source port, dest port, and udp payload (padded with 0)
         // if udp && dest_port==client_port && udp csum okay && long enough
         if ipv4_proto!=0x11 {
@@ -316,6 +320,11 @@ impl <'a> EthernetRx <'a> {
         ipv4_src_port
         }
         
+    pub fn udp_payload_length(&self) -> usize {
+        let ipv4_udp_length      = self.be16(38) as usize;
+        ipv4_udp_length - 8 // as UDP field includes ports, length and csum
+        }
+        
     pub fn eth_src_mac(&self) -> (u32, u16) {
         (self.be32(6) as u32,self.be16(10) as u16)
         }
@@ -325,20 +334,32 @@ impl <'a> EthernetRx <'a> {
         if self.bytes_valid<42 {
             0
         } else {
-            for i in 0..(self.bytes_valid-42) {
+            let from_buf = self.bytes_valid-42;
+            for i in 0..from_buf {
                 data[i] = self.data[42+i];
             }
-            let num_bytes = data.len();
-            let num_bytes = if num_bytes>self.packet_bytes {self.packet_bytes} else {num_bytes};
-            let words = (num_bytes - self.bytes_valid)>>2;
+            let payload_len = self.udp_payload_length();
+            let data_len = data.len();
+            let num_bytes = if payload_len<data_len {payload_len} else {data_len}; // 516
+            let words = (num_bytes - from_buf)>>2; // presumably 0x204>>2 = 0x81 = 129
+            // riscv_base::dprintf::write4(0,(0x87,num_bytes as u32,0xffffffff,0)); // 0x20a (expected to be 0x204 I think)
+            // riscv_base::dprintf::write4(0,(0x87,self.bytes_valid as u32,0xffffffff,0)); // 0x30
             for i in 0..words {
                 let rx_d = axi.rx_read_u32_raw();
-                let ofs = 42 + i<<2;
+                let ofs = from_buf + (i<<2);
                 data[ofs+0] = (rx_d >> 0) as u8;
                 data[ofs+1] = (rx_d >> 8) as u8;
                 data[ofs+2] = (rx_d >>16) as u8;
                 data[ofs+3] = (rx_d >>24) as u8;
             }
+            // unsafe {
+            //     let mut data_ptr: *mut u32  = data.as_mut_ptr() as *mut u32;
+            //     for _ in 0..16 {
+            //         let d = *data_ptr;
+            //         riscv_base::dprintf::write4(0,(0x87,d,0xffffffff,0));
+            //         data_ptr = data_ptr.offset(1);
+            //     }
+            // }
             num_bytes
         }
         

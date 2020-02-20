@@ -1,8 +1,11 @@
-//    apb_address_rx_config      = 0   "Receive configuration",
-//    apb_address_rx_data_ptr    = 1   "Receive data pointer",
-//    apb_address_rx_data        = 2   "Receive data",
-//    apb_address_rx_data_next   = 3   "Receive data and move on",
-//    apb_address_rx_commit      = 4   "Mark current receive data pointer as head of read",
+use super::minimal;
+use super::minimal::{APB_AXI4S};
+
+//    apb_address_rx_config      = 2 0   "Receive configuration",
+//    apb_address_rx_data_ptr    = 3 1   "Receive data pointer",
+//    apb_address_rx_data        = 4 2   "Receive data",
+//    apb_address_rx_data_next   = 5 3   "Receive data and move on",
+//    apb_address_rx_commit      = 6 4   "Mark current receive data pointer as head of read",
 //    apb_address_tx_config      = 8   "Transmit configuration",
 //    apb_address_tx_data_ptr    = 9   "Transmit data pointer",
 //    apb_address_tx_data        = 10  "Transmit data",
@@ -17,43 +20,20 @@
 //  Then 32-bits of AXI4S user data from the first AXI4S USER word
 //  Then (pkt_words-1) * 32-bits of packet data
 
-pub fn write_rx_config(data:u32) {
-    super::minimal::write_dev_apb(super::minimal::APB_AXI4S, 0, data);
-}
-
-pub fn write_tx_config(data:u32) {
-    super::minimal::write_dev_apb(super::minimal::APB_AXI4S, 8, data);
-}
-
-pub fn set_rx_ptr(data:u32) {
-    super::minimal::write_dev_apb(super::minimal::APB_AXI4S, 1, data);
-}
-
-pub fn read_rx_data() -> u32 {
-    super::minimal::read_dev_apb(super::minimal::APB_AXI4S, 2)
-}
-
-pub fn read_rx_data_inc() -> u32 {
-    super::minimal::read_dev_apb(super::minimal::APB_AXI4S, 3)
-}
-
-pub fn commit_rx_ptr() {
-    super::minimal::write_dev_apb(super::minimal::APB_AXI4S, 4, 0)
-}
-
-pub fn set_tx_ptr(data:u32) {
-    super::minimal::write_dev_apb(super::minimal::APB_AXI4S, 9, data);
-}
-
-
-pub fn write_tx_data(data:u32) {
-    super::minimal::write_dev_apb(super::minimal::APB_AXI4S, 10, data);
-}
-
-
-pub fn write_tx_data_inc(data:u32) {
-    super::minimal::write_dev_apb(super::minimal::APB_AXI4S, 11, data);
-}
+read_dev_apb_fn!( read_config, APB_AXI4S, 0);
+write_dev_apb_fn!( write_config, APB_AXI4S, 0);
+read_dev_apb_fn!( read_debug, APB_AXI4S, 1);
+write_dev_apb_fn!( write_rx_config, APB_AXI4S, 2);
+read_dev_apb_fn!( read_rx_config, APB_AXI4S, 2);
+read_dev_apb_fn!( read_rx_ptr, APB_AXI4S, 3);
+write_dev_apb_fn!( set_rx_ptr, APB_AXI4S, 3);
+read_dev_apb_fn!( read_rx_data, APB_AXI4S, 4);
+read_dev_apb_fn!( read_rx_data_inc, APB_AXI4S, 5);
+pub fn commit_rx_ptr() { super::minimal::write_dev_apb(super::minimal::APB_AXI4S, 6, 0) }
+write_dev_apb_fn!( write_tx_config, APB_AXI4S, 8);
+write_dev_apb_fn!( set_tx_ptr, APB_AXI4S, 9);
+write_dev_apb_fn!( write_tx_data, APB_AXI4S, 10);
+write_dev_apb_fn!( write_tx_data_inc, APB_AXI4S, 11);
 
 pub enum AxiError {
     RxOverflow,
@@ -86,6 +66,8 @@ impl Axi {
             }
     }
     pub fn reset(&mut self) {
+        write_config(5); // reset rx and tx
+        write_config(0); // remove reset rx and tx
         set_rx_ptr(0);
         set_tx_ptr(0);
         write_tx_data(0);
@@ -96,6 +78,8 @@ impl Axi {
         self.next_rx_ptr = 0;
         self.rx_tail = 0;
         self.rx_tail_size = 0;
+        write_config(10); // init rx and tx
+        write_config(0); // remove init rx and tx
     }
 
     // Preprare the tx buffer for new data
@@ -120,7 +104,7 @@ impl Axi {
         set_tx_ptr(self.tx_ptr);
         write_tx_data(byte_size);
         self.tx_ptr = (self.tx_ptr + 2 + word_size);
-        if self.tx_ptr > self.sram_size {
+        if self.tx_ptr >= self.sram_size {
             self.tx_ptr -= self.sram_size;
         }
     }
@@ -148,7 +132,7 @@ impl Axi {
         set_tx_ptr(self.tx_ptr);
         write_tx_data(self.tx_size<<2); // number of bytes in packet
         self.tx_ptr = (self.tx_ptr + 2 + self.tx_size);// % self.sram_size;
-        if self.tx_ptr > self.sram_size {
+        if self.tx_ptr >= self.sram_size {
             self.tx_ptr -= self.sram_size;
         }
 
@@ -226,7 +210,7 @@ impl Axi {
         let rx_status = read_rx_data_inc();
         let word_size = rx_status & 0x3ff;
         self.next_rx_ptr = self.rx_ptr + word_size;
-        if self.next_rx_ptr > self.sram_size {
+        if self.next_rx_ptr >= self.sram_size {
             self.next_rx_ptr -= self.sram_size;
         }
         

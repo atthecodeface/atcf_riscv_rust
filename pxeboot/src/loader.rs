@@ -82,18 +82,3 @@ impl <'a, T:SubLoader> Loader <'a, T> {
         true
     }
 }
-
-pub struct DebugSubLoader {
-}
-
-impl SubLoader for DebugSubLoader {
-    fn copy_memory(&self, source:&[u8], dest:u32) -> bool {
-        //println!("Copy memory to {:?}", dest);
-        true
-    }
-    fn execute(&self, address:u32) {
-        //println!("Execute at {:?}", address);
-        loop {}
-    }
-        
-}

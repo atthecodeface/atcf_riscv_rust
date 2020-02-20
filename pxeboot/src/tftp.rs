@@ -25,7 +25,7 @@ pub struct Tftp {
     timeout  : u32,
 }
 
-const DATA_TIMEOUT : u32 = 1000000;
+const DATA_TIMEOUT : u32 = 300000;
 
 fn read_u16_be(data:&[u8]) -> usize {
     (data[1] as usize) |
@@ -90,7 +90,7 @@ impl Tftp {
         tx_buf[1] = 1;
         tx_buf[2..8].copy_from_slice(b"banana");
         tx_buf[9..14].copy_from_slice(b"octet");
-        socket.tx_data(&tx_buf[..18]);
+        socket.tx_data(&tx_buf[..15]);
         self.timeout = DATA_TIMEOUT;
         self.state = TftpState::Block(1);
         TftpEvent::Connect
@@ -151,7 +151,7 @@ impl Tftp {
         if socket.has_rx_data() {
             self.handle_rx_data(socket, data)
         } else if self.timeout==0 {
-            self.handle_timeout(socket, )
+            self.handle_timeout(socket)
         } else {
             TftpEvent::Idle
         }

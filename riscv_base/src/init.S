@@ -69,6 +69,16 @@ start_pause2:
 
     
 _start_trap:
+    lui     s1,0x420
+    li      a0,0x0a0d2187
+    sw      a0,32(s1)
+    csrr    a0, mepc
+    sw      a0,36(s1)
+    li      a0,0x87
+    sw      a0,40(s1)
+    csrr    a0, mtval
+    sw      a0,44(s1)
+    sw      zero,64(s1)
 wait_forever:
     j wait_forever
     
